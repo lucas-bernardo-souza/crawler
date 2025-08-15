@@ -43,7 +43,7 @@ function initializeState(state) {
 }
 
 function iniciar() {
-    xmlSite += '<site url="' + window.location.href + '" titulo="' + $(document).find("title").text() + '" tipo="crawler">\n\t<pages>\n\n';
+    xmlSite += '<site url="' + window.location.href + '" titulo="' + document.title + '" tipo="crawler">\n\t<pages>\n\n';
     processaDom();
 }
 
@@ -58,7 +58,7 @@ function processaDom() {
     }, 15 * 1000);
 
     var url = window.location.href;
-    var title = $(document).find("title").text().replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    var title = document.title.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
     adicionaLinkAcessado(url);
     xmlSite += '\t\t<page url="' + url + '" titulo="' + title + '" node_id="' + numPagina + '" index="' + index + '">\n';
     xmlSite += '\t\t<event name="onLoad" node_id="' + numPagina + '" item_id="null" event_id="' + numEvento + '"/>\n';
@@ -79,15 +79,13 @@ function processaDom() {
 
     domain = window.location.hostname;
     itemAtual = 0;
-    DOM = Array.from($('body *'));
-    
-    $('iframe').each(function() {
-        try {
-            const iframeElements = $(this).contents().find('body *');
-            if (iframeElements.length > 0) {
-                DOM.push(...Array.from(iframeElements));
-            }
-        } catch (e) {}
+    DOM = Array.from(document.body.querySelectorAll('*'));
+
+    document.querySelectorAll('iframe').forEach(iframe => {
+        if(iframe.contentDocument){
+            const iframeElements = iframe.contentDocument.querySelectorAll('body *');
+            DOM.push(...Array.from(iframeElements));
+        }
     });
 
     mapeiaProximoComponente();
@@ -95,9 +93,11 @@ function processaDom() {
 
 function mapeiaProximoComponente() {
     if (itemAtual < DOM.length) {
-        $('.crawlerLiviaStatus').remove();
-        $('body').append('<div class="crawlerLiviaStatus" style="position: fixed; left: 15px; top: 15px; z-index:99999999999999; background-color: #000; width: 300px; padding: 20px; color: #fff; font-size: 15px; font-family: \'Arial\', sans-serif; text-align: center;">Rastreando Componente: ' + (itemAtual + 1) + ' de ' + DOM.length + '</div>');
-
+        document.querySelector('.crawlerLiviaStatus')?.remove();
+        const statusDiv = document.createElement('div');
+        statusDiv.className = 'crawlerLiviaStatus';
+        statusDiv.style.cssText = 'position: fixed; left: 15px; top: 15px; z-index:99999999999999; background-color: #000; width: 300px; padding: 20px; color: #fff; font-size: 15px; font-family: Arial, sans-serif; text-align: center;';
+        document.body.appendChild(statusDiv);
         mapeiaComponente(itemAtual);
         itemAtual++;
         
@@ -109,8 +109,8 @@ function mapeiaProximoComponente() {
 }
 
 function mapeiaComponente(dom_id){
-    var elemento = $(DOM[dom_id]);
-    var tag = elemento.prop("tagName");
+    var elemento = DOM[dom_id];
+    var tag = elemento.tagName;
 
     if(!tag){ return; }
 
@@ -118,7 +118,7 @@ function mapeiaComponente(dom_id){
 
     switch(tag){
         case 'a': 
-            var url = elemento.prop('href');
+            var url = elemento.href;
             if(url != undefined && url != ''){
                 var externo = new URL(url, window.location.href).hostname !== domain;
 
@@ -130,10 +130,10 @@ function mapeiaComponente(dom_id){
                     }
                 }
                 
-                xmlSite += `\t\t\t<component type="link" dom_id="${dom_id}" node_id="${numPagina}" item_id="${numComponente}" name="${verificaVazio(elemento.text())}" externo="${externo}">\n`;
-                xmlSite += `\t\t\t\t<event name="click" node_id="${numPagina}" item_id="${numComponente}" event_id="${numEvento}"><![CDATA[${elemento.attr('href')}]]></event>\n`;
+                xmlSite += `\t\t\t<component type="link" dom_id="${dom_id}" node_id="${numPagina}" item_id="${numComponente}" name="${verificaVazio(elemento.textContent)}" externo="${externo}">\n`;
+                xmlSite += `\t\t\t\t<event name="click" node_id="${numPagina}" item_id="${numComponente}" event_id="${numEvento}"><![CDATA[${elemento.getAttribute('href')}]]></event>\n`;
                 numEvento++;
-                xmlSite += `\t\t\t\t<event name="enter" node_id="${numPagina}" item_id="${numComponente}" event_id="${numEvento}"><![CDATA[${elemento.attr('href')}]]></event>\n`;
+                xmlSite += `\t\t\t\t<event name="enter" node_id="${numPagina}" item_id="${numComponente}" event_id="${numEvento}"><![CDATA[${elemento.getAttribute('href')}]]></event>\n`;
                 numEvento++;
                 xmlSite += `\t\t\t\t<state name="not visited" node_id="${numPagina}" item_id="${numComponente}" state_id="${numState}"></state>\n`;
                 numState++;
@@ -145,13 +145,13 @@ function mapeiaComponente(dom_id){
             break;
 
         case 'input':
-            var tipo = elemento.prop('type') ? elemento.prop('type').toLowerCase() : 'text';
+            var tipo = elemento.type ? elemento.type.toLowerCase() : 'text';
             var botoes = ["button", "reset", "submit", "image"];
             var campos = ["text", "color", "date", "datetime", "datetime-local", "email", "month", "number", "file", "password", "search", "tel", "time", "url", "week", "hidden"];
             var checks = ["checkbox", "radio"];
 
             if(botoes.indexOf(tipo) != -1){
-                xmlSite += `\t\t\t<component type="button" dom_id="${dom_id}" node_id="${numPagina}" item_id="${numComponente}" name="${verificaVazio(elemento.attr('name'))}">\n`;
+                xmlSite += `\t\t\t<component type="button" dom_id="${dom_id}" node_id="${numPagina}" item_id="${numComponente}" name="${verificaVazio(elemento.getAttribute('name'))}">\n`;
                 xmlSite += `\t\t\t\t<event name="click" node_id="${numPagina}" item_id="${numComponente}" event_id="${numEvento}"></event>\n`;
                 numEvento++;
                 xmlSite += `\t\t\t\t<event name="enter" node_id="${numPagina}" item_id="${numComponente}" event_id="${numEvento}"></event>\n`;
@@ -163,7 +163,7 @@ function mapeiaComponente(dom_id){
                 xmlSite += '\t\t\t</component>\n';
                 numComponente++;
             } else if (campos.indexOf(tipo) != -1 || tipo === 'range'){
-                xmlSite += `\t\t\t<component type="input" dom_id="${dom_id}" node_id="${numPagina}" item_id="${numComponente}" name="${verificaVazio(elemento.attr('name'))}">\n`;
+                xmlSite += `\t\t\t<component type="input" dom_id="${dom_id}" node_id="${numPagina}" item_id="${numComponente}" name="${verificaVazio(elemento.getAttribute('name'))}">\n`;
                 xmlSite += `\t\t\t\t<event name="focus" node_id="${numPagina}" item_id="${numComponente}" event_id="${numEvento}"></event>\n`;
                 numEvento++;
                 xmlSite += `\t\t\t\t<event name="blur" node_id="${numPagina}" item_id="${numComponente}" event_id="${numEvento}"></event>\n`;
@@ -181,7 +181,7 @@ function mapeiaComponente(dom_id){
                 xmlSite += '\t\t\t</component>\n';
                 numComponente++;
             } else if (checks.indexOf(tipo) != -1){
-                xmlSite += `\t\t\t<component type="${tipo}" dom_id="${dom_id}" node_id="${numPagina}" item_id="${numComponente}" name="${verificaVazio(elemento.attr('name'))}">\n`;
+                xmlSite += `\t\t\t<component type="${tipo}" dom_id="${dom_id}" node_id="${numPagina}" item_id="${numComponente}" name="${verificaVazio(elemento.getAttribute('name'))}">\n`;
                 xmlSite += `\t\t\t\t<event name="click" node_id="${numPagina}" item_id="${numComponente}" event_id="${numEvento}"></event>\n`;
                 numEvento++;
                 xmlSite += `\t\t\t\t<event name="enter" node_id="${numPagina}" item_id="${numComponente}" event_id="${numEvento}"></event>\n`;
@@ -199,7 +199,7 @@ function mapeiaComponente(dom_id){
 
         case 'textarea':
         case 'select':
-            xmlSite += `\t\t\t<component type="${tag}" dom_id="${dom_id}" node_id="${numPagina}" item_id="${numComponente}" name="${verificaVazio(elemento.attr('name'))}">\n`;
+            xmlSite += `\t\t\t<component type="${tag}" dom_id="${dom_id}" node_id="${numPagina}" item_id="${numComponente}" name="${verificaVazio(elemento.getAttribute('name'))}">\n`;
             xmlSite += `\t\t\t\t<event name="focus" node_id="${numPagina}" item_id="${numComponente}" event_id="${numEvento}"></event>\n`;
             numEvento++;
             xmlSite += `\t\t\t\t<event name="blur" node_id="${numPagina}" item_id="${numComponente}" event_id="${numEvento}"></event>\n`;
@@ -213,7 +213,7 @@ function mapeiaComponente(dom_id){
             break;
 
         case 'button':
-            xmlSite += `\t\t\t<component type="button" dom_id="${dom_id}" node_id="${numPagina}" item_id="${numComponente}" name="${verificaVazio(elemento.attr('name'))}">\n`;
+            xmlSite += `\t\t\t<component type="button" dom_id="${dom_id}" node_id="${numPagina}" item_id="${numComponente}" name="${verificaVazio(elemento.getAttribute('name'))}">\n`;
             xmlSite += `\t\t\t\t<event name="click" node_id="${numPagina}" item_id="${numComponente}" event_id="${numEvento}"></event>\n`;
             numEvento++;
             xmlSite += `\t\t\t\t<event name="enter" node_id="${numPagina}" item_id="${numComponente}" event_id="${numEvento}"></event>\n`;
@@ -280,8 +280,12 @@ function acessaProximoLink() {
     if (proximoLink) {
         numPagina++;
         adicionaLinkAcessado(proximoLink);
-        $('.crawlerLiviaStatus').remove();
-        $('body').append('<div class="crawlerLiviaStatus" style="position: fixed; left: 15px; top: 15px; z-index:99999999999999; background-color: #000; width: 300px; padding: 20px; color: #fff; font-size: 15px; font-family: \'Arial\', sans-serif; text-align: center;">Acessando Link: ' + proximoLink + '</div>');
+        document.querySelector('.crawlerLiviaStatus')?.remove();
+        const statusDiv = document.createElement('div');
+        statusDiv.className = 'crawlerLiviaStatus';
+        statusDiv.style.cssText = 'position: fixed; left: 15px; top: 15px; z-index:99999999999999; background-color: #000; width: 300px; padding: 20px; color: #fff; font-size: 15px; font-family: Arial, sans-serif; text-align: center;';
+        statusDiv.textContent = 'Acessando Link: ' + proximoLink;
+        document.body.appendChild(statusDiv);
 
         const currentState = { linksPorPai, linksAcessados, xmlSite, numPagina, numComponente, numEvento, numState, index };
         chrome.runtime.sendMessage({ acao: "abrelink", url: proximoLink, crawlerState: currentState });
@@ -300,7 +304,7 @@ function finalizaCrawler() {
     xmlSite += '\t</edges>\n';
     xmlSite += '</site>\n';
 
-    $('.crawlerLiviaStatus').remove();
+    document.querySelector('.crawlerLiviaStatus')?.remove();
     var blob = new Blob([xmlSite], { type: "text/xml;charset=utf-8" });
     saveAs(blob, "mapa.xml");
 

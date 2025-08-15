@@ -1,14 +1,36 @@
+// Função para resetar o crawler
+async function resetCrawler() {
+    try{
+        // Envia uma mensagem para parar o crawler
+        await chrome.runtime.sendMessage({action: "resetCrawler"});
+
+        // Atualiza a UI
+        const initCrawlerBtn = document.getElementById('initCrawler');
+        initCrawlerBtn.textContent = 'Iniciar Crawler';
+        initCrawlerBtn.disable = false;
+
+        console.log('Crawler resetado com sucesso');
+    } catch (error){
+        console.error('Erro ao resetar crawler: ', error);
+    }
+}
+
 // Essa função atualiza o estado do botão com base no armazenamento
 async function updateButtonState() {
-    const {isCrawling} = await createFetchableDevEnvironment.storage.local.get('isCrawling');
-    const initCrawlerBtn = document.getElementById('initCrawler');
+    try {
+        const result = await chrome.storage.local.get('isCrawling');
+        const isCrawling = result.isCrawling;
+        const initCrawlerBtn = document.getElementById('initCrawler');
 
-    if (isCrawling){
-        initCrawlerBtn.textContext = 'Rastreando...';
-        initCrawlerBtn.disabled = true;
-    } else {
-        initCrawlerBtn.textContent = 'Iniciar Crawler';
-        initCrawlerBtn.disabled = false;
+        if (isCrawling) {
+            initCrawlerBtn.textContent = 'Rastreando...';
+            initCrawlerBtn.disabled = true;
+        } else {
+            initCrawlerBtn.textContent = 'Iniciar Crawler';
+            initCrawlerBtn.disabled = false;
+        }
+    } catch (error) {
+        console.error('Erro ao acessar storage:', error);
     }
 }
 
@@ -27,6 +49,9 @@ document.getElementById('initCrawler').addEventListener('click', async () => {
     }
 });
 
+// Listener para o botão resetar
+document.getElementById('resetCrawler').addEventListener('click', resetCrawler);
+
 // Listener para redefinir o botão quando o rastreamento termina
 chrome.runtime.onMessage.addListener((request) => {
     if(request.action === 'crawlerFinished'){
@@ -35,4 +60,4 @@ chrome.runtime.onMessage.addListener((request) => {
 });
 
 // Atualiza o estado do botão quando o popuo é aberto
-document.addEventListener('DOMContextLoaded', updateButtonState);
+document.addEventListener('DOMContentLoaded', updateButtonState);

@@ -3,6 +3,7 @@ import { defineConfig } from 'vite';
 
 export default defineConfig({
   build: {
+    minify: false,
     rollupOptions: {
       input: {
         popup: resolve(__dirname, 'popup.html'), // Aponta para o popup.html na raiz

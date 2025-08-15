@@ -38,6 +38,13 @@ chrome.runtime.onMessage.addListener(async (request, sender, sendResponse) => {
         sendResponse({ status: "alive" });
         return true;
     }
+
+    // Ação para resetar o crawler
+    if(request.action === 'resetCrawler'){
+        await chrome.storage.local.remove(['isCrawling', 'crawlerState']);
+        chrome.runtime.sendMessage({action: 'crawlerFinished'});
+        return true;
+    }
 });
 
 
