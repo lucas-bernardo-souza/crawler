@@ -1,156 +1,199 @@
-var linksPorPai, linksAcessados, xmlSite, numPagina, numComponente, numEvento, numState, index;
-var domain = '';
-var DOM;
-var itemAtual = 0;
-// Variavel para controlar o hertbeat (manter o background sempre ativo)
-var keepAliveInterval;
-
-(async () => {
-    try {
-        const response = await chrome.runtime.sendMessage({ action: "contentScriptReady" });
-        if (response && response.shouldCrawl) {
-            const state = response.crawlerState;
-            initializeState(state);
-            setTimeout(rastrear, 2000);
-        }
-    } catch (error) {
-        if (!error.message.includes("Could not establish connection")) {
-            console.error("Erro ao comunicar com o background script:", error);
-        }
+class WebCrawler {
+    constructor(){
+        this.linksPorPai = [];
+        this.linksAcessados = [];
+        this.xmlSite = '';
+        this.numPagina = 1;
+        this.numComponente = 1;
+        this.numEvento = 1;
+        this.numState = 1;
+        this.index = 'true';
+        this.domain = '';
+        this.DOM = [];
+        this.itemAtual = 0;
+        this.keepAliveInterval = null;
+        this.setupMessageListener();
     }
-})();
 
-// Listener para a PRIMEIRA PÁGINA
-chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-    if (request.acao === "iniciar") {
-        const state = request.crawlerState;
-        initializeState(state);
-        iniciar();
-        sendResponse({ status: "iniciando" });
+    async iniciar(){
+        this.xmlSite = '<?xml version="1.0" encoding="UTF-8"?>\n';
+        this.xmlSite += `<site url="${window.location.href}" titulo="${document.title}" tipo="crawler">\n\t<pages>\n\n`;
+
+        // Configurar heartbeat
+        this.setupHeartbeat();
+
+        // Iniciar processamento
+        this.processaDom();
     }
-});
 
-// Função para centralizar a inicialização de variáveis
-function initializeState(state) {
-    linksPorPai = state.linksPorPai;
-    linksAcessados = state.linksAcessados;
-    xmlSite = state.xmlSite;
-    numPagina = state.numPagina;
-    numComponente = state.numComponente;
-    numEvento = state.numEvento;
-    numState = state.numState;
-    index = state.index;
-}
+    setupHeartbeat() {
+        if (this.keepAliveInterval) clearInterval(this.keepAliveInterval);
+        this.keepAliveInterval = setInterval(() => {
+            chrome.runtime.sendMessage({ action: "keepAlive" }).catch(() => {});
+        }, 15000);
+    }
 
-function iniciar() {
-    xmlSite += '<site url="' + window.location.href + '" titulo="' + document.title + '" tipo="crawler">\n\t<pages>\n\n';
-    processaDom();
-}
+    rastrear() {
+        this.processaDom();
+    }
 
-function rastrear() {
-    processaDom();
-}
+    setupMessageListener() {
+        chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+            if(request.action === "startCrawling"){
+                this.iniciar();
+                sendResponse({status: "iniciando"});
+                return true;
+            }
+            if(request.action === "continueCrawling"){
+                this.initializeState(request.crawlerState);
+                this.rastrear();
+                return true;
+            }
+            if(request.action === "contentScriptReady"){
+                sendResponse({
+                    shouldCrawl: true,
+                    crawlerState: this.getCurrentState()
+                });
+                return true;
+            }
+        });
+    }
 
-function processaDom() {
-    if (keepAliveInterval) clearInterval(keepAliveInterval);
-    keepAliveInterval = setInterval(() => {
-        chrome.runtime.sendMessage({ action: "keepAlive" }).catch(() => {});
-    }, 15 * 1000);
-
-    var url = window.location.href;
-    var title = document.title.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-    adicionaLinkAcessado(url);
-    xmlSite += '\t\t<page url="' + url + '" titulo="' + title + '" node_id="' + numPagina + '" index="' + index + '">\n';
-    xmlSite += '\t\t<event name="onLoad" node_id="' + numPagina + '" item_id="null" event_id="' + numEvento + '"/>\n';
-    numEvento++;
-    xmlSite += '\t\t<state name="onLoad" node_id="' + numPagina + '" item_id="null" state_id="' + numState + '"/>\n';
-    numState++;
-    xmlSite += '\t\t<state name="Load" node_id="' + numPagina + '" item_id="null" state_id="' + numState + '"/>\n';
-    numState++;
+    getCurrentState(){
+        return{
+            linksPorPai: this.linksPorPai,
+            linksAcessados: this.linksAcessados,
+            xmlSite: this.xmlSite,
+            numPagina: this.numPagina,
+            numComponente: this.numComponente,
+            numEvento: this.numEvento,
+            numState: this.numState,
+            index: this.index
+        };
+    }
     
-    let pageData = linksPorPai.find(p => p.id === numPagina);
-    if (!pageData) {
-        linksPorPai.push({ id: numPagina, links: [] });
-    }
-
-    if (index === 'true') {
-        index = 'false';
-    }
-
-    domain = window.location.hostname;
-    itemAtual = 0;
-    DOM = Array.from(document.body.querySelectorAll('*'));
-
-    document.querySelectorAll('iframe').forEach(iframe => {
-        if(iframe.contentDocument){
-            const iframeElements = iframe.contentDocument.querySelectorAll('body *');
-            DOM.push(...Array.from(iframeElements));
-        }
-    });
-
-    mapeiaProximoComponente();
-}
-
-function mapeiaProximoComponente() {
-    if (itemAtual < DOM.length) {
-        document.querySelector('.crawlerLiviaStatus')?.remove();
-        const statusDiv = document.createElement('div');
-        statusDiv.className = 'crawlerLiviaStatus';
-        statusDiv.style.cssText = 'position: fixed; left: 15px; top: 15px; z-index:99999999999999; background-color: #000; width: 300px; padding: 20px; color: #fff; font-size: 15px; font-family: Arial, sans-serif; text-align: center;';
-        document.body.appendChild(statusDiv);
-        mapeiaComponente(itemAtual);
-        itemAtual++;
+    processaDom(){
+        // Coletar elementos
+        this.DOM = Array.from(document.body.querySelectorAll('*'));
         
-        setTimeout(() => mapeiaProximoComponente(), 0);
-    } else {
-        xmlSite += '\t\t</page>\n\n';
-        acessaProximoLink();
-    }
-}
-
-function mapeiaComponente(dom_id){
-    var elemento = DOM[dom_id];
-    var tag = elemento.tagName;
-
-    if(!tag){ return; }
-
-    tag = tag.toLowerCase();
-
-    switch(tag){
-        case 'a': 
-            var url = elemento.href;
-            if(url != undefined && url != ''){
-                var externo = new URL(url, window.location.href).hostname !== domain;
-
-                let currentPageData = linksPorPai.find(p => p.id === numPagina);
-                if (currentPageData) {
-                    const absoluteUrl = new URL(url, window.location.href).href;
-                    if (!checkMedia(absoluteUrl) && !externo) {
-                         currentPageData.links.push({ link: absoluteUrl, componente: numComponente });
-                    }
+        // Processar iframes (adicionando ao DOM)
+        document.querySelectorAll('iframe').forEach(iframe => {
+            try {
+                if (iframe.contentDocument) {
+                    const iframeElements = iframe.contentDocument.querySelectorAll('body *');
+                    this.DOM.push(...Array.from(iframeElements));
                 }
-                
-                xmlSite += `\t\t\t<component type="link" dom_id="${dom_id}" node_id="${numPagina}" item_id="${numComponente}" name="${verificaVazio(elemento.textContent)}" externo="${externo}">\n`;
-                xmlSite += `\t\t\t\t<event name="click" node_id="${numPagina}" item_id="${numComponente}" event_id="${numEvento}"><![CDATA[${elemento.getAttribute('href')}]]></event>\n`;
+            } catch(e) {
+                console.error('Erro ao acessar iframe:', e);
+            }
+        });
+
+        this.mapeiaProximoComponente();
+    }
+
+    mapeiaComponente(dom_id){
+        const elemento = this.DOM[dom_id];
+        if(!elemento || !elemento.tagName) return;
+
+        const tag = elemento.tagName.toLowerCase();
+
+        switch(tag){
+            case 'a': 
+                var url = elemento.href;
+                if(url != undefined && url != ''){
+                    var externo = new URL(url, window.location.href).hostname !== domain;
+
+                    let currentPageData = linksPorPai.find(p => p.id === numPagina);
+                    if (currentPageData) {
+                        const absoluteUrl = new URL(url, window.location.href).href;
+                        if (!checkMedia(absoluteUrl) && !externo) {
+                            currentPageData.links.push({ link: absoluteUrl, componente: numComponente });
+                        }
+                    }
+                    
+                    xmlSite += `\t\t\t<component type="link" dom_id="${dom_id}" node_id="${numPagina}" item_id="${numComponente}" name="${verificaVazio(elemento.textContent)}" externo="${externo}">\n`;
+                    xmlSite += `\t\t\t\t<event name="click" node_id="${numPagina}" item_id="${numComponente}" event_id="${numEvento}"><![CDATA[${elemento.getAttribute('href')}]]></event>\n`;
+                    numEvento++;
+                    xmlSite += `\t\t\t\t<event name="enter" node_id="${numPagina}" item_id="${numComponente}" event_id="${numEvento}"><![CDATA[${elemento.getAttribute('href')}]]></event>\n`;
+                    numEvento++;
+                    xmlSite += `\t\t\t\t<state name="not visited" node_id="${numPagina}" item_id="${numComponente}" state_id="${numState}"></state>\n`;
+                    numState++;
+                    xmlSite += `\t\t\t\t<state name="visited" node_id="${numPagina}" item_id="${numComponente}" state_id="${numState}"></state>\n`;
+                    numState++;
+                    xmlSite += '\t\t\t</component>\n';
+                    numComponente++;
+                }
+                break;
+
+            case 'input':
+                var tipo = elemento.type ? elemento.type.toLowerCase() : 'text';
+                var botoes = ["button", "reset", "submit", "image"];
+                var campos = ["text", "color", "date", "datetime", "datetime-local", "email", "month", "number", "file", "password", "search", "tel", "time", "url", "week", "hidden"];
+                var checks = ["checkbox", "radio"];
+
+                if(botoes.indexOf(tipo) != -1){
+                    xmlSite += `\t\t\t<component type="button" dom_id="${dom_id}" node_id="${numPagina}" item_id="${numComponente}" name="${verificaVazio(elemento.getAttribute('name'))}">\n`;
+                    xmlSite += `\t\t\t\t<event name="click" node_id="${numPagina}" item_id="${numComponente}" event_id="${numEvento}"></event>\n`;
+                    numEvento++;
+                    xmlSite += `\t\t\t\t<event name="enter" node_id="${numPagina}" item_id="${numComponente}" event_id="${numEvento}"></event>\n`;
+                    numEvento++;
+                    xmlSite += `\t\t\t\t<state name="selected" node_id="${numPagina}" item_id="${numComponente}" state_id="${numState}"></state>\n`;
+                    numState++;
+                    xmlSite += `\t\t\t\t<state name="notselected" node_id="${numPagina}" item_id="${numComponente}" state_id="${numState}"></state>\n`;
+                    numState++;
+                    xmlSite += '\t\t\t</component>\n';
+                    numComponente++;
+                } else if (campos.indexOf(tipo) != -1 || tipo === 'range'){
+                    xmlSite += `\t\t\t<component type="input" dom_id="${dom_id}" node_id="${numPagina}" item_id="${numComponente}" name="${verificaVazio(elemento.getAttribute('name'))}">\n`;
+                    xmlSite += `\t\t\t\t<event name="focus" node_id="${numPagina}" item_id="${numComponente}" event_id="${numEvento}"></event>\n`;
+                    numEvento++;
+                    xmlSite += `\t\t\t\t<event name="blur" node_id="${numPagina}" item_id="${numComponente}" event_id="${numEvento}"></event>\n`;
+                    numEvento++;
+                    xmlSite += `\t\t\t\t<event name="change" node_id="${numPagina}" item_id="${numComponente}" event_id="${numEvento}"></event>\n`;
+                    numEvento++;
+                    xmlSite += `\t\t\t\t<state name="empty" node_id="${numPagina}" item_id="${numComponente}" state_id="${numState}"></state>\n`;
+                    numState++;
+                    xmlSite += `\t\t\t\t<state name="notEmpty" node_id="${numPagina}" item_id="${numComponente}" state_id="${numState}"></state>\n`;
+                    numState++;
+                    xmlSite += `\t\t\t\t<state name="disabled" node_id="${numPagina}" item_id="${numComponente}" state_id="${numState}"></state>\n`;
+                    numState++;
+                    xmlSite += `\t\t\t\t<state name="readOnly" node_id="${numPagina}" item_id="${numComponente}" state_id="${numState}"></state>\n`;
+                    numState++;
+                    xmlSite += '\t\t\t</component>\n';
+                    numComponente++;
+                } else if (checks.indexOf(tipo) != -1){
+                    xmlSite += `\t\t\t<component type="${tipo}" dom_id="${dom_id}" node_id="${numPagina}" item_id="${numComponente}" name="${verificaVazio(elemento.getAttribute('name'))}">\n`;
+                    xmlSite += `\t\t\t\t<event name="click" node_id="${numPagina}" item_id="${numComponente}" event_id="${numEvento}"></event>\n`;
+                    numEvento++;
+                    xmlSite += `\t\t\t\t<event name="enter" node_id="${numPagina}" item_id="${numComponente}" event_id="${numEvento}"></event>\n`;
+                    numEvento++;
+                    xmlSite += `\t\t\t\t<state name="disabled" node_id="${numPagina}" item_id="${numComponente}" state_id="${numState}"></state>\n`;
+                    numState++;
+                    xmlSite += `\t\t\t\t<state name="notChecked" node_id="${numPagina}" item_id="${numComponente}" state_id="${numState}"></state>\n`;
+                    numState++;
+                    xmlSite += `\t\t\t\t<state name="checked" node_id="${numPagina}" item_id="${numComponente}" state_id="${numState}"></state>\n`;
+                    numState++;
+                    xmlSite += '\t\t\t</component>\n';
+                    numComponente++;
+                }
+                break;
+
+            case 'textarea':
+            case 'select':
+                xmlSite += `\t\t\t<component type="${tag}" dom_id="${dom_id}" node_id="${numPagina}" item_id="${numComponente}" name="${verificaVazio(elemento.getAttribute('name'))}">\n`;
+                xmlSite += `\t\t\t\t<event name="focus" node_id="${numPagina}" item_id="${numComponente}" event_id="${numEvento}"></event>\n`;
                 numEvento++;
-                xmlSite += `\t\t\t\t<event name="enter" node_id="${numPagina}" item_id="${numComponente}" event_id="${numEvento}"><![CDATA[${elemento.getAttribute('href')}]]></event>\n`;
+                xmlSite += `\t\t\t\t<event name="blur" node_id="${numPagina}" item_id="${numComponente}" event_id="${numEvento}"></event>\n`;
                 numEvento++;
-                xmlSite += `\t\t\t\t<state name="not visited" node_id="${numPagina}" item_id="${numComponente}" state_id="${numState}"></state>\n`;
-                numState++;
-                xmlSite += `\t\t\t\t<state name="visited" node_id="${numPagina}" item_id="${numComponente}" state_id="${numState}"></state>\n`;
+                xmlSite += `\t\t\t\t<event name="change" node_id="${numPagina}" item_id="${numComponente}" event_id="${numEvento}"></event>\n`;
+                numEvento++;
+                xmlSite += `\t\t\t\t<state name="disabled" node_id="${numPagina}" item_id="${numComponente}" state_id="${numState}"></state>\n`;
                 numState++;
                 xmlSite += '\t\t\t</component>\n';
                 numComponente++;
-            }
-            break;
+                break;
 
-        case 'input':
-            var tipo = elemento.type ? elemento.type.toLowerCase() : 'text';
-            var botoes = ["button", "reset", "submit", "image"];
-            var campos = ["text", "color", "date", "datetime", "datetime-local", "email", "month", "number", "file", "password", "search", "tel", "time", "url", "week", "hidden"];
-            var checks = ["checkbox", "radio"];
-
-            if(botoes.indexOf(tipo) != -1){
+            case 'button':
                 xmlSite += `\t\t\t<component type="button" dom_id="${dom_id}" node_id="${numPagina}" item_id="${numComponente}" name="${verificaVazio(elemento.getAttribute('name'))}">\n`;
                 xmlSite += `\t\t\t\t<event name="click" node_id="${numPagina}" item_id="${numComponente}" event_id="${numEvento}"></event>\n`;
                 numEvento++;
@@ -162,151 +205,79 @@ function mapeiaComponente(dom_id){
                 numState++;
                 xmlSite += '\t\t\t</component>\n';
                 numComponente++;
-            } else if (campos.indexOf(tipo) != -1 || tipo === 'range'){
-                xmlSite += `\t\t\t<component type="input" dom_id="${dom_id}" node_id="${numPagina}" item_id="${numComponente}" name="${verificaVazio(elemento.getAttribute('name'))}">\n`;
-                xmlSite += `\t\t\t\t<event name="focus" node_id="${numPagina}" item_id="${numComponente}" event_id="${numEvento}"></event>\n`;
-                numEvento++;
-                xmlSite += `\t\t\t\t<event name="blur" node_id="${numPagina}" item_id="${numComponente}" event_id="${numEvento}"></event>\n`;
-                numEvento++;
-                xmlSite += `\t\t\t\t<event name="change" node_id="${numPagina}" item_id="${numComponente}" event_id="${numEvento}"></event>\n`;
-                numEvento++;
-                xmlSite += `\t\t\t\t<state name="empty" node_id="${numPagina}" item_id="${numComponente}" state_id="${numState}"></state>\n`;
-                numState++;
-                xmlSite += `\t\t\t\t<state name="notEmpty" node_id="${numPagina}" item_id="${numComponente}" state_id="${numState}"></state>\n`;
-                numState++;
-                xmlSite += `\t\t\t\t<state name="disabled" node_id="${numPagina}" item_id="${numComponente}" state_id="${numState}"></state>\n`;
-                numState++;
-                xmlSite += `\t\t\t\t<state name="readOnly" node_id="${numPagina}" item_id="${numComponente}" state_id="${numState}"></state>\n`;
-                numState++;
-                xmlSite += '\t\t\t</component>\n';
-                numComponente++;
-            } else if (checks.indexOf(tipo) != -1){
-                xmlSite += `\t\t\t<component type="${tipo}" dom_id="${dom_id}" node_id="${numPagina}" item_id="${numComponente}" name="${verificaVazio(elemento.getAttribute('name'))}">\n`;
-                xmlSite += `\t\t\t\t<event name="click" node_id="${numPagina}" item_id="${numComponente}" event_id="${numEvento}"></event>\n`;
-                numEvento++;
-                xmlSite += `\t\t\t\t<event name="enter" node_id="${numPagina}" item_id="${numComponente}" event_id="${numEvento}"></event>\n`;
-                numEvento++;
-                xmlSite += `\t\t\t\t<state name="disabled" node_id="${numPagina}" item_id="${numComponente}" state_id="${numState}"></state>\n`;
-                numState++;
-                xmlSite += `\t\t\t\t<state name="notChecked" node_id="${numPagina}" item_id="${numComponente}" state_id="${numState}"></state>\n`;
-                numState++;
-                xmlSite += `\t\t\t\t<state name="checked" node_id="${numPagina}" item_id="${numComponente}" state_id="${numState}"></state>\n`;
-                numState++;
-                xmlSite += '\t\t\t</component>\n';
-                numComponente++;
-            }
-            break;
-
-        case 'textarea':
-        case 'select':
-            xmlSite += `\t\t\t<component type="${tag}" dom_id="${dom_id}" node_id="${numPagina}" item_id="${numComponente}" name="${verificaVazio(elemento.getAttribute('name'))}">\n`;
-            xmlSite += `\t\t\t\t<event name="focus" node_id="${numPagina}" item_id="${numComponente}" event_id="${numEvento}"></event>\n`;
-            numEvento++;
-            xmlSite += `\t\t\t\t<event name="blur" node_id="${numPagina}" item_id="${numComponente}" event_id="${numEvento}"></event>\n`;
-            numEvento++;
-            xmlSite += `\t\t\t\t<event name="change" node_id="${numPagina}" item_id="${numComponente}" event_id="${numEvento}"></event>\n`;
-            numEvento++;
-            xmlSite += `\t\t\t\t<state name="disabled" node_id="${numPagina}" item_id="${numComponente}" state_id="${numState}"></state>\n`;
-            numState++;
-            xmlSite += '\t\t\t</component>\n';
-            numComponente++;
-            break;
-
-        case 'button':
-            xmlSite += `\t\t\t<component type="button" dom_id="${dom_id}" node_id="${numPagina}" item_id="${numComponente}" name="${verificaVazio(elemento.getAttribute('name'))}">\n`;
-            xmlSite += `\t\t\t\t<event name="click" node_id="${numPagina}" item_id="${numComponente}" event_id="${numEvento}"></event>\n`;
-            numEvento++;
-            xmlSite += `\t\t\t\t<event name="enter" node_id="${numPagina}" item_id="${numComponente}" event_id="${numEvento}"></event>\n`;
-            numEvento++;
-            xmlSite += `\t\t\t\t<state name="selected" node_id="${numPagina}" item_id="${numComponente}" state_id="${numState}"></state>\n`;
-            numState++;
-            xmlSite += `\t\t\t\t<state name="notselected" node_id="${numPagina}" item_id="${numComponente}" state_id="${numState}"></state>\n`;
-            numState++;
-            xmlSite += '\t\t\t</component>\n';
-            numComponente++;
-            break;
-    }
-}
-
-
-function verificaVazio(texto){
-    if(texto != undefined && texto != null){
-        var filter = /^(?!\s*$).+/;
-        if (!filter.test(texto)) {
-            return "";
-        }else{
-            return texto.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+                break;
         }
-    }else{
-        return '';
     }
-}
+    
+    acessaProximoLink(){
+        let proximoLink = '';
 
-function checkMedia(url) {
-    try {
-        const path = new URL(url).pathname;
-        return (path.match(/\.(jpeg|jpg|gif|png|mp3|svg|mp4|avi|pdf|doc|docx|xls|xlsx|ppt|pptx)$/i) != null);
-    } catch(e) {
-        return false;
-    }
-}
+        for(const page of this.linksPorPai){
+            const linkNaoAcessado = page.link?.find(linkInfo => 
+                !this.verificaLinkAcessado(linkInfo.link)
+            );
 
-function adicionaLinkAcessado(linkU) {
-    let url = new URL(linkU, window.location.origin).href.split('#')[0].split('?')[0];
-    if (!linksAcessados.includes(url)) {
-        linksAcessados.push(url);
-    }
-}
-
-function verificaLinkAcessado(linkU) {
-    let url = new URL(linkU, window.location.origin).href.split('#')[0].split('?')[0];
-    return linksAcessados.includes(url);
-}
-
-function acessaProximoLink() {
-    let proximoLink = '';
-    for (const page of linksPorPai) {
-        if (page.links) {
-            for (const linkInfo of page.links) {
-                if (!verificaLinkAcessado(linkInfo.link)) {
-                    proximoLink = linkInfo.link;
-                    break;
-                }
+            if(linkNaoAcessado){
+                proximoLink = linkNaoAcessado.link;
+                break;
             }
         }
-        if (proximoLink) break;
+
+        if(proximoLink){
+            this.numPagina++;
+            this.adicionaLinkAcessado(proximoLink);
+            this.mostrarStatus(`Acessando Link: ${proximoLink}`);
+
+            chrome.runtime.sendMessage({
+                action: "abrelink",
+                url: proximoLink,
+                crawlerState: this.getCurrentState()
+            });
+        } else {
+            this.finalizaCrawler();
+        }
     }
 
-    if (proximoLink) {
-        numPagina++;
-        adicionaLinkAcessado(proximoLink);
+    mostrarStatus(mensagem){
         document.querySelector('.crawlerLiviaStatus')?.remove();
         const statusDiv = document.createElement('div');
         statusDiv.className = 'crawlerLiviaStatus';
-        statusDiv.style.cssText = 'position: fixed; left: 15px; top: 15px; z-index:99999999999999; background-color: #000; width: 300px; padding: 20px; color: #fff; font-size: 15px; font-family: Arial, sans-serif; text-align: center;';
-        statusDiv.textContent = 'Acessando Link: ' + proximoLink;
+        statusDiv.style.cssText = 'position: fixed; left: 15px; top: 15px; z-index:99999999999999; ' + 
+                                 'background-color: #000; width: 300px; padding: 20px; color: #fff; ' +
+                                 'font-size: 15px; font-family: Arial, sans-serif; text-align: center;';
+        statusDiv.textContent = mensagem;
         document.body.appendChild(statusDiv);
-
-        const currentState = { linksPorPai, linksAcessados, xmlSite, numPagina, numComponente, numEvento, numState, index };
-        chrome.runtime.sendMessage({ acao: "abrelink", url: proximoLink, crawlerState: currentState });
-    } else {
-        finalizaCrawler();
     }
-}
+    
+    finalizaCrawler() {
+        this.xmlSite += '\t</pages>\n\n';
+        this.xmlSite += '\t<edges>\n';
+        
+        // Gerar edges (conexões entre páginas)
+        this.linksPorPai.forEach(page => {
+            page.links.forEach(linkInfo => {
+                const targetPageId = this.linksAcessados.indexOf(linkInfo.link) + 1;
+                if (targetPageId > 0) {
+                    this.xmlSite += `\t\t<edge source="${page.id}" target="${targetPageId}" ref_item_id="${linkInfo.componente}"/>\n`;
+                }
+            });
+        });
+        
+        this.xmlSite += '\t</edges>\n';
+        this.xmlSite += '</site>\n';
+        
+        this.salvarXML();
+    }
 
-function finalizaCrawler() {
-    // Para o heartbeat quando o crawler termina
-    if(keepAliveInterval) clearInterval(keepAliveInterval);
+    salvarXML(){
+        const blob = new Blob([this.xmlSite], {type: "text/xml;charset=utf-8"});
+        const url = URL.createObjectURL(blob);
 
-    xmlSite += '\t</pages>\n\n';
-    xmlSite += '\t<edges>\n';
-    // ... Lógica para gerar as arestas ...
-    xmlSite += '\t</edges>\n';
-    xmlSite += '</site>\n';
-
-    document.querySelector('.crawlerLiviaStatus')?.remove();
-    var blob = new Blob([xmlSite], { type: "text/xml;charset=utf-8" });
-    saveAs(blob, "mapa.xml");
-
-    chrome.runtime.sendMessage({ acao: "resetacrawler" });
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'site-map.xml';
+        a.click();
+        document.body.removeChild(a);
+    }
+    
 }
