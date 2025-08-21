@@ -45,7 +45,7 @@ document.getElementById('initCrawler').addEventListener('click', async () => {
         // Atualiza a UI imediatamente
         const initCrawlerBtn = document.getElementById('initCrawler');
         initCrawlerBtn.textContent = 'Rastreando...';
-        initCrawlerBtn.disable = true;
+        initCrawlerBtn.disabled = true;
     }
 });
 

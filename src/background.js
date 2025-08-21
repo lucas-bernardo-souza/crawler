@@ -67,7 +67,7 @@ async function startCrawling(tabId) {
     setTimeout(() => {
         try {
             chrome.tabs.sendMessage(tabId, {
-                acao: "iniciar",
+                action: "startCrawling",
                 crawlerState: initialState
             });
         } catch(e) {
