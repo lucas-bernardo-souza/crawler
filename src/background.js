@@ -49,29 +49,67 @@ chrome.runtime.onMessage.addListener(async (request, sender, sendResponse) => {
 
 
 async function startCrawling(tabId) {
-    await chrome.storage.local.set({ isCrawling: true });
-    const initialState = {
-        linksPorPai: [],
-        linksAcessados: [],
-        xmlSite: '<?xml version="1.0" encoding="UTF-8"?>\n',
-        numPagina: 1,
-        numComponente: 1,
-        numEvento: 1,
-        numState: 1,
-        index: "true"
-    };
-    await chrome.storage.local.set({ crawlerState: initialState });
+    try {
+        await chrome.storage.local.set({ isCrawling: true });
+        const initialState = {
+            linksPorPai: [],
+            linksAcessados: [],
+            xmlSite: '<?xml version="1.0" encoding="UTF-8"?>\n',
+            numPagina: 1,
+            numComponente: 1,
+            numEvento: 1,
+            numState: 1,
+            index: "true"
+        };
+        await chrome.storage.local.set({ crawlerState: initialState });
 
-    // Envia a mensagem inicial para a primeira página
-    // É importante esperar um pouco para garantir que a aba esteja pronta para receber
-    setTimeout(() => {
-        try {
-            chrome.tabs.sendMessage(tabId, {
+        // Aguarda a próxima página carregar completamente
+        await new Promise(resolve => setTimeout(resolve, 1000));
+
+        // Verificar se a aba ainda existe e está acessivel
+        const tab = await chrome.tabs.get(tabId);
+        if(tab){
+            await chrome.tabs.sendMessage(tabId, {
                 action: "startCrawling",
-                crawlerState: initialState
+                crawlerState: "initialState"
             });
-        } catch(e) {
-            console.error("Não foi possível enviar a mensagem inicial.", e);
         }
-    }, 200);
+    } catch (e){
+        console.error("Erro ao iniciar crawler: ", e);
+    }
 }
+
+chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
+    if (changeInfo.status === 'complete' && tab.url && tab.url !== 'chrome://newtab/') {
+        try {
+            const { isCrawling, crawlerState } = await chrome.storage.local.get(['isCrawling', 'crawlerState']);
+            
+            if (isCrawling && crawlerState) {
+                // Aguardar um pouco mais para garantir que o content script esteja pronto
+                setTimeout(async () => {
+                    try {
+                        await chrome.tabs.sendMessage(tabId, {
+                            action: "continueCrawling",
+                            crawlerState: crawlerState
+                        });
+                    } catch (e) {
+                        console.log("Aguardando content script carregar...");
+                        // Tentar novamente após um delay
+                        setTimeout(async () => {
+                            try {
+                                await chrome.tabs.sendMessage(tabId, {
+                                    action: "continueCrawling",
+                                    crawlerState: crawlerState
+                                });
+                            } catch (e2) {
+                                console.error("Não foi possível enviar mensagem para content script:", e2);
+                            }
+                        }, 1000);
+                    }
+                }, 500);
+            }
+        } catch (e) {
+            console.error("Erro ao verificar estado do crawler:", e);
+        }
+    }
+});

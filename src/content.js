@@ -12,6 +12,13 @@ class WebCrawler {
         this.DOM = [];
         this.itemAtual = 0;
         this.keepAliveInterval = null;
+        this.timeoutId = null;
+
+        // Timeout de segurança para evitar travamentos
+        this.timeoutId = setTimeout(() => {
+            console.warn("Timeout de segurança ativado");
+            this.finalizaCrawler();
+        }, 300000); // 5 minutos
     }
 
     async iniciar(){
@@ -83,22 +90,32 @@ class WebCrawler {
     }
     
     processaDom(){
-        // Coletar elementos
-        this.DOM = Array.from(document.body.querySelectorAll('*'));
-        
-        // Processar iframes (adicionando ao DOM)
-        document.querySelectorAll('iframe').forEach(iframe => {
-            try {
-                if (iframe.contentDocument) {
-                    const iframeElements = iframe.contentDocument.querySelectorAll('body *');
-                    this.DOM.push(...Array.from(iframeElements));
+        try {
+            // Coletar elementos do documento principal
+            this.DOM = Array.from(document.body.querySelectorAll('*'));
+            
+            // Processar iframes
+            const iframes = document.querySelectorAll('iframe');
+            console.log(`Encontrados ${iframes.length} iframes`);
+            
+            for(const iframe of iframes){
+                try {
+                    if (iframe.contentDocument && iframe.contentDocument.body) {
+                        const iframeElements = iframe.contentDocument.querySelectorAll('body *');
+                        this.DOM.push(...Array.from(iframeElements));
+                        console.log(`Adicionados ${iframeElements.length} elementos do iframe`);
+                    }
+                } catch(e) {
+                    console.warn('Não foi possível acessar iframe:', e);
                 }
-            } catch(e) {
-                console.error('Erro ao acessar iframe:', e);
             }
-        });
 
-        this.mapeiaProximoComponente();
+            console.log(`Total de elementos para processar: ${this.DOM.length}`);
+            this.mapeiaProximoComponente();
+        } catch (error) {
+            console.error("Erro em processaDom:", error);
+            this.finalizaCrawler();
+        }
     }
 
     mapeiaProximoComponente(){
@@ -269,30 +286,45 @@ class WebCrawler {
     }
     
     acessaProximoLink(){
+        console.log("Buscando próximo link...");
+        console.log("Links por pai:", this.linksPorPai);
+        console.log("Links acessados:", this.linksAcessados);
+
         let proximoLink = '';
 
         for(const page of this.linksPorPai){
-            const linkNaoAcessado = page.links?.find(linkInfo => 
-                !this.verificaLinkAcessado(linkInfo.link)
-            );
-
-            if(linkNaoAcessado){
-                proximoLink = linkNaoAcessado.link;
-                break;
+            if (page.links) {
+                for(const linkInfo of page.links){
+                    if(!this.verificaLinkAcessado(linkInfo.link)){
+                        proximoLink = linkInfo.link;
+                        console.log("Próximo link encontrado:", proximoLink);
+                        break;
+                    }
+                }
             }
+            if(proximoLink) break;
         }
 
         if(proximoLink){
+            console.log("Navegando para:", proximoLink);
             this.numPagina++;
             this.adicionaLinkAcessado(proximoLink);
             this.mostrarStatus(`Acessando Link: ${proximoLink}`);
 
-            chrome.runtime.sendMessage({
-                action: "abrelink",
-                url: proximoLink,
-                crawlerState: this.getCurrentState()
+            // Salvar estado atual antes de navegar
+            chrome.storage.local.set({ 
+                crawlerState: this.getCurrentState(),
+                isCrawling: true
+            }, () => {
+                console.log("Estado salvo, navegando...");
+                chrome.runtime.sendMessage({
+                    action: "abrelink",
+                    url: proximoLink,
+                    crawlerState: this.getCurrentState()
+                });
             });
         } else {
+            console.log("Nenhum próximo link encontrado, finalizando...");
             this.finalizaCrawler();
         }
     }
@@ -309,6 +341,12 @@ class WebCrawler {
     }
     
     finalizaCrawler() {
+        // Limpar timeout de segurança
+        if (this.timeoutId) {
+            clearTimeout(this.timeoutId);
+            this.timeoutId = null;
+        }
+
         this.xmlSite += '\t</pages>\n\n';
         this.xmlSite += '\t<edges>\n';
         
@@ -354,6 +392,31 @@ class WebCrawler {
 }
 
 let crawler = null;
+let isInitialized = false;
+
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initCrawlerIfNeeded);
+} else {
+    initCrawlerIfNeeded();
+}
+
+async function initCrawlerIfNeeded() {
+    try {
+        const response = await chrome.runtime.sendMessage({ 
+            action: "contentScriptReady" 
+        });
+        
+        if (response && response.shouldCrawl) {
+            crawler = new WebCrawler();
+            crawler.initializeState(response.crawlerState);
+            setTimeout(() => crawler.rastrear(), 1000);
+        }
+    } catch (error) {
+        if (!error.message.includes("Could not establish connection")) {
+            console.error("Erro ao inicializar crawler:", error);
+        }
+    }
+}
 
 // Listener para mensagens do background script
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
