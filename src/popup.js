@@ -49,6 +49,11 @@ document.getElementById('initCrawler').addEventListener('click', async () => {
     }
 });
 
+// Listener para o botão Iniciar Tracer
+document.getElementById('initTracer').addEventListener('click', async () => {
+    
+})
+
 // Listener para o botão resetar
 document.getElementById('resetCrawler').addEventListener('click', resetCrawler);
 

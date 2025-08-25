@@ -467,3 +467,374 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         }
     }
 })();
+
+// Início da implementação do Tracer
+// Verificar possibilidade de separar essas duas classes em dois arquivos
+class WebTracer {
+    constructor() {
+        this.gravando = false;
+        this.xmlTracer = '';
+        this.xmlFinalTracer = '';
+        this.xmlInteracoes = '';
+        this.numInteracoes = 1;
+        this.tempoInteracao = 0;
+        this.domAtual = '';
+        this.xmlJquery = null;
+        this.domain = new URL(window.location.href).hostname;
+        
+        this.setupMessageListener();
+        this.initializeFromStorage();
+    }
+
+    async initializeFromStorage() {
+        try {
+            const result = await chrome.storage.local.get([
+                'xmlFinalTracer', 'xmlInteracoes', 'gravando', 
+                'xmlTracer', 'numInteracoes', 'tempoInteracao'
+            ]);
+            
+            if (result.xmlFinalTracer) {
+                this.xmlFinalTracer = result.xmlFinalTracer;
+                this.xmlInteracoes = result.xmlInteracoes;
+                this.gravando = result.gravando;
+                this.xmlTracer = result.xmlTracer;
+                this.numInteracoes = result.numInteracoes;
+                this.tempoInteracao = result.tempoInteracao;
+                
+                if (this.gravando) {
+                    this.continuaTracer();
+                }
+            }
+        } catch (error) {
+            console.error('Erro ao inicializar tracer do storage:', error);
+        }
+    }
+
+    setupMessageListener() {
+        chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+            if (request.action === "iniciarGravacao") {
+                this.gravando = request.gravando;
+                this.xmlTracer = request.xmlTracer;
+                
+                chrome.storage.local.set({
+                    xmlFinalTracer: this.xmlFinalTracer,
+                    xmlInteracoes: this.xmlInteracoes,
+                    gravando: this.gravando,
+                    xmlTracer: this.xmlTracer,
+                    numInteracoes: this.numInteracoes,
+                    tempoInteracao: this.tempoInteracao
+                }, () => {
+                    this.iniciaTracer(request.tabid);
+                    sendResponse({ status: "gravacao_iniciada" });
+                });
+                return true;
+            }
+            
+            if (request.action === "salvarXMLTracer") {
+                this.xmlFinalTracer = request.xmlFinalTracer;
+                this.xmlInteracoes = request.xmlInteracoes;
+                this.gravando = request.gravando;
+                this.xmlTracer = request.xmlTracer;
+                this.numInteracoes = request.numInteracoes;
+                this.tempoInteracao = request.tempoInteracao;
+                
+                this.salvarXMLTracer();
+                sendResponse({ status: "xml_salvo" });
+                return true;
+            }
+        });
+    }
+
+    iniciaTracer(tabid) {
+        this.domAtual = document.body.innerHTML;
+        const urlMapa = window.location.href;
+        const titulo = document.title;
+
+        // Parse do XML do crawler
+        const parser = new DOMParser();
+        this.xmlJquery = parser.parseFromString(this.xmlTracer, "text/xml");
+        
+        this.xmlFinalTracer = '<?xml version="1.0" encoding="UTF-8"?>\n';
+        this.xmlFinalTracer += `<site url="${urlMapa}" titulo="${titulo}" tipo="tracer">\n`;
+        this.xmlFinalTracer += '\t<pages>\n';
+        this.xmlFinalTracer += this.xmlTracer.match(/<pages>([\s\S]*?)<\/pages>/)[1];
+        this.xmlFinalTracer += '\t</pages>\n';
+
+        this.xmlInteracoes = '\t<interactions>\n';
+        
+        this.monitorarEventos();
+    }
+
+    continuaTracer() {
+        this.domAtual = document.body.innerHTML;
+        const parser = new DOMParser();
+        this.xmlJquery = parser.parseFromString(this.xmlTracer, "text/xml");
+        this.monitorarEventos();
+    }
+
+    monitorarEventos() {
+        this.atualizaDinamicos();
+        
+        // Monitorar clicks em links
+        document.body.addEventListener('click', (e) => {
+            this.handleClickEvent(e);
+        });
+
+        // Monitorar eventos de teclado
+        document.body.addEventListener('keypress', (e) => {
+            this.handleKeypressEvent(e);
+        });
+
+        // Monitorar mudanças em formulários
+        document.body.addEventListener('change', (e) => {
+            this.handleChangeEvent(e);
+        });
+    }
+
+    handleClickEvent(e) {
+        const elemento = e.target;
+        const tagName = elemento.tagName.toLowerCase();
+        const timeStamp = Math.floor(e.timeStamp);
+
+        if (tagName === 'a') {
+            this.handleLinkClick(elemento, e, timeStamp);
+        } else if (tagName === 'input') {
+            this.handleInputClick(elemento, e, timeStamp);
+        } else if (tagName === 'button') {
+            this.handleButtonClick(elemento, timeStamp, 'click');
+        }
+    }
+
+    handleLinkClick(elemento, e, timeStamp) {
+        const url = elemento.href;
+        if (!url) return;
+
+        e.preventDefault();
+        e.stopPropagation();
+
+        const isExterno = new URL(url).hostname !== this.domain;
+        
+        if (!isExterno) {
+            this.insereInteracoes(
+                Array.from(document.body.querySelectorAll('*')).indexOf(elemento),
+                url,
+                timeStamp,
+                'page',
+                'click'
+            );
+            
+            this.tempoInteracao = timeStamp;
+            this.salvarEstado(() => {
+                window.location.href = url;
+            });
+        } else {
+            if (confirm('Este link te levará para fora da página e encerrará o tracer. Tem certeza que deseja encerrá-lo?')) {
+                this.insereInteracoes(
+                    Array.from(document.body.querySelectorAll('*')).indexOf(elemento),
+                    url,
+                    timeStamp,
+                    'page',
+                    'click'
+                );
+                
+                this.tempoInteracao = timeStamp;
+                this.salvarEstado(() => {
+                    this.salvarXMLTracer();
+                });
+            }
+        }
+    }
+
+    handleInputClick(elemento, e, timeStamp) {
+        const tipo = elemento.type.toLowerCase();
+        
+        if (['button', 'reset', 'submit', 'image'].includes(tipo)) {
+            this.handleButtonClick(elemento, timeStamp, 'click');
+        } else if (['checkbox', 'radio'].includes(tipo)) {
+            this.handleCheckboxRadioClick(elemento, timeStamp, 'click');
+        }
+    }
+
+    handleButtonClick(elemento, timeStamp, evento) {
+        this.insereInteracoes(
+            Array.from(document.body.querySelectorAll('*')).indexOf(elemento),
+            '',
+            timeStamp,
+            'button',
+            evento
+        );
+        
+        this.tempoInteracao = timeStamp;
+        this.salvarEstado();
+    }
+
+    handleCheckboxRadioClick(elemento, timeStamp, evento) {
+        const tipo = elemento.type.toLowerCase();
+        this.insereInteracoes(
+            Array.from(document.body.querySelectorAll('*')).indexOf(elemento),
+            '',
+            timeStamp,
+            tipo,
+            evento
+        );
+        
+        this.tempoInteracao = timeStamp;
+        this.salvarEstado();
+    }
+
+    handleKeypressEvent(e) {
+        if (e.key === 'Enter') {
+            const elemento = e.target;
+            const tagName = elemento.tagName.toLowerCase();
+            const timeStamp = Math.floor(e.timeStamp);
+
+            if (tagName === 'a') {
+                this.handleLinkEnter(elemento, e, timeStamp);
+            } else if (tagName === 'input') {
+                this.handleInputEnter(elemento, timeStamp);
+            } else if (tagName === 'button') {
+                this.handleButtonClick(elemento, timeStamp, 'enter');
+            }
+        }
+    }
+
+    handleLinkEnter(elemento, e, timeStamp) {
+        const url = elemento.href;
+        if (!url) return;
+
+        e.preventDefault();
+        e.stopPropagation();
+
+        const isExterno = new URL(url).hostname !== this.domain;
+        
+        if (!isExterno) {
+            this.insereInteracoes(
+                Array.from(document.body.querySelectorAll('*')).indexOf(elemento),
+                url,
+                timeStamp,
+                'page',
+                'enter'
+            );
+            
+            this.tempoInteracao = timeStamp;
+            this.salvarEstado(() => {
+                window.location.href = url;
+            });
+        }
+    }
+
+    handleInputEnter(elemento, timeStamp) {
+        const tipo = elemento.type.toLowerCase();
+        
+        if (['button', 'reset', 'submit', 'image'].includes(tipo)) {
+            this.handleButtonClick(elemento, timeStamp, 'enter');
+        }
+    }
+
+    handleChangeEvent(e) {
+        const elemento = e.target;
+        const tagName = elemento.tagName.toLowerCase();
+        const timeStamp = Math.floor(e.timeStamp);
+
+        if (['input', 'textarea', 'select'].includes(tagName)) {
+            this.insereInteracoes(
+                Array.from(document.body.querySelectorAll('*')).indexOf(elemento),
+                '',
+                timeStamp,
+                tagName,
+                'change'
+            );
+            
+            this.tempoInteracao = timeStamp;
+            this.salvarEstado();
+        }
+    }
+
+    insereInteracoes(domId, url, tempo, tipo, evento) {
+        // Implementação similar à função original
+        // Busca informações no XML do crawler e gera as interações
+        // Esta é uma versão simplificada - adaptar conforme necessário
+        console.log('Interação registrada:', { domId, url, tempo, tipo, evento });
+        
+        // Aqui você implementaria a lógica completa de mapeamento
+        // para o XML de interações conforme o original
+    }
+
+    atualizaDinamicos() {
+        // Atualiza estado dos elementos dinâmicos
+        const inputs = document.querySelectorAll('input, select, textarea, button');
+        this.inputsAtuais = Array.from(inputs).map(input => ({
+            elemento: input,
+            value: input.value,
+            checked: input.checked,
+            disabled: input.disabled,
+            readOnly: input.readOnly
+        }));
+
+        const iframes = document.querySelectorAll('iframe');
+        this.iframesAtuais = Array.from(iframes).map(iframe => ({
+            elemento: iframe,
+            src: iframe.src,
+            html: iframe.contentDocument?.documentElement.outerHTML || ''
+        }));
+    }
+
+    async salvarEstado(callback = null) {
+        try {
+            await chrome.storage.local.set({
+                xmlFinalTracer: this.xmlFinalTracer,
+                xmlInteracoes: this.xmlInteracoes,
+                gravando: this.gravando,
+                xmlTracer: this.xmlTracer,
+                numInteracoes: this.numInteracoes,
+                tempoInteracao: this.tempoInteracao
+            });
+            
+            if (callback) callback();
+        } catch (error) {
+            console.error('Erro ao salvar estado:', error);
+        }
+    }
+
+    salvarXMLTracer() {
+        this.xmlFinalTracer += this.xmlInteracoes;
+        this.xmlFinalTracer += '\t</interactions>\n';
+        this.xmlFinalTracer += '</site>\n';
+
+        const blob = new Blob([this.xmlFinalTracer], { type: "text/xml" });
+        const url = URL.createObjectURL(blob);
+        
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = "mapa-tracer.xml";
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        
+        URL.revokeObjectURL(url);
+
+        // Resetar estado
+        this.gravando = false;
+        this.xmlTracer = '';
+        this.xmlFinalTracer = '';
+        this.xmlInteracoes = '';
+        this.numInteracoes = 1;
+        this.tempoInteracao = 0;
+
+        this.salvarEstado();
+    }
+}
+
+// Adicionar ao initialization existente
+let tracer = null;
+
+function initializeTracer() {
+    tracer = new WebTracer();
+}
+
+// Inicializar quando o content script carregar
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initializeTracer);
+} else {
+    initializeTracer();
+}
