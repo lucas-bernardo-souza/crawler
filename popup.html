@@ -18,13 +18,67 @@
           background-color: #f44336;
           color: white;
         }
+
+        /* Estilos para o tracer */
+        #frameXML {
+            margin: 10px 0;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            background-color: #f9f9f9;
+        }
+
+        #frameXML h4 {
+            margin: 0 0 8px 0;
+            font-size: 14px;
+            color: #333;
+        }
+
+        #loadXML {
+            padding: 6px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            font-size: 12px;
+        }
+
+        .tracer-message {
+            margin: 10px 0;
+            padding: 8px;
+            border-radius: 4px;
+            font-size: 12px;
+        }
+
+        .tracer-message.error {
+            background-color: #ffebee;
+            color: #c62828;
+            border: 1px solid #ef9a9a;
+        }
+
+        .tracer-message.success {
+            background-color: #e8f5e8;
+            color: #2e7d32;
+            border: 1px solid #a5d6a7;
+        }
+
+        .tracer-message.info {
+            background-color: #e3f2fd;
+            color: #1565c0;
+            border: 1px solid #90caf9;
+        }
       </style>
   </head>
   <body>
-    <h2>Web Model Crawler</h2>
-    <button id="initCrawler">Iniciar Crawler</button>
-    <button id="resetCrawler">Resetar Crawler</button>
-    <button id="initTracer">Iniciar Rastreio</button>
+    <div class="janela">
+      <h2>Web Model Crawler</h2>
+      <button id="initCrawler">Iniciar Crawler</button>
+      <button id="resetCrawler">Resetar Crawler</button>
+      <button id="initTracer">Iniciar Rastreio</button>
+      
+      <div id="frameXML" style="display: none;">
+        <h4>Importar XML do Crawler:</h4>
+        <input type="file" id="loadXML" name="loadXML" placeholder="Carregar XML" style="width: 204px;">
+      </div>
+    </div>
     <script type="module" src="/src/popup.js"></script>
   </body>
  </html>

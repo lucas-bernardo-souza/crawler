@@ -45,6 +45,16 @@ chrome.runtime.onMessage.addListener(async (request, sender, sendResponse) => {
         chrome.runtime.sendMessage({action: 'crawlerFinished'});
         return true;
     }
+
+    // Ação para iniciar o tracer
+    if(request.action === "startTracer"){
+        chrome.tabs.sendMessage(request.tabId, {
+            action: "iniciarGravacao",
+            gravando: true,
+            xmlTracer: request.xmlTracer
+        });
+        sendResponse({status: "started"});
+    }
 });
 
 
