@@ -202,7 +202,7 @@ async function validateAndStartTracer(xmlContent, fileName) {
         
         // Enviar mensagem para background script iniciar tracer
         const tab = await getCurrentTab();
-        await chrome.tabs.sendMessage(tab.id, {
+        await chrome.runtime.sendMessage(tab.id, {
             action: "iniciarGravacao",
             gravando: gravando,
             xmlTracer: xmlTracer
@@ -220,7 +220,7 @@ async function validateAndStartTracer(xmlContent, fileName) {
 async function sendSaveXMLMessage() {
     try {
         const tab = await getCurrentTab();
-        await chrome.tabs.sendMessage(tab.id, {
+        await chrome.runtime.sendMessage(tab.id, {
             action: "salvarXMLTracer",
             xmlFinalTracer: xmlFinalTracer,
             xmlInteracoes: xmlInteracoes,

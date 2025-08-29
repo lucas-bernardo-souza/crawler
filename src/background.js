@@ -48,12 +48,49 @@ chrome.runtime.onMessage.addListener(async (request, sender, sendResponse) => {
 
     // Ação para iniciar o tracer
     if(request.action === "startTracer"){
-        chrome.tabs.sendMessage(request.tabId, {
-            action: "iniciarGravacao",
-            gravando: true,
+        try{
+            await chrome.tabs.sendMessage(request.tabId, {
+                action: "iniciarGravacao",
+                gravando: true,
+                xmlTracer: request.xmlTracer
+            });
+            sendResponse({status: "tracer_started"});
+        } catch(error){
+            console.log("Erro ao iniciar tracer:", error);
+            sendResponse({status: "error", message: error.message});
+        }
+        return true;
+    }
+
+    if(request.action === "iniciarGravacao"){
+        await chrome.storage.local.set({
+            gravando: request.gravando,
             xmlTracer: request.xmlTracer
         });
-        sendResponse({status: "started"});
+        sendResponse({status: "gravacao_iniciada"});
+        return true;
+    }
+
+    if(request.action === "salvarXMLTracer"){
+        await chrome.storage.local.set({
+            xmlFinalTracer: request.xmlFinalTracer,
+            xmlInteracoes: request.xmlInteracoes,
+            gravando: request.gravando,
+            xmlTracer: request.xmlTracer,
+            numInteracoes: request.numInteracoes,
+            tempoInteracao: request.tempoInteracao
+        });
+        sendResponse({status: "xml_salvo"});
+        return true;
+    }
+
+    if(request.action === "gravarStatus"){
+        await chrome.storage.local.set({
+            gravando: request.gravando,
+            xmlTracer: request.xmlTracer
+        });
+        sendResponse({status: "status_atualizado"});
+        return true;
     }
 });
 
@@ -81,7 +118,7 @@ async function startCrawling(tabId) {
         if(tab){
             await chrome.tabs.sendMessage(tabId, {
                 action: "startCrawling",
-                crawlerState: "initialState"
+                crawlerState: initialState
             });
         }
     } catch (e){
