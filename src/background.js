@@ -1,5 +1,25 @@
 chrome.runtime.onMessage.addListener(async (request, sender, sendResponse) => {
     
+    // VERIFICAÇÕES DE COORDENAÇÃO
+    // Garante que só o Tracer ou o Crawler esteja em execução
+    const { isCrawling, gravando } = await chrome.storage.local.get(['isCrawling', 'gravando']);
+    
+    // Impedir iniciar tracer se crawler está ativo
+    if ((request.action === "startTracer" || request.action === "iniciarGravacao") && isCrawling) {
+        sendResponse({ 
+            error: "Crawler em andamento. Aguarde a conclusão do crawler antes de iniciar a gravação." 
+        });
+        return true;
+    }
+    
+    // Impedir iniciar crawler se tracer está ativo
+    if (request.action === "startCrawler" && gravando) {
+        sendResponse({ 
+            error: "Gravação em andamento. Interrompa a gravação do tracer antes de iniciar o crawler." 
+        });
+        return true;
+    }
+    
     // Ação para o popup iniciar o crawler na primeira página
     if (request.action === "startCrawler") {
         startCrawling(request.tabId);
@@ -97,6 +117,13 @@ chrome.runtime.onMessage.addListener(async (request, sender, sendResponse) => {
 
 async function startCrawling(tabId) {
     try {
+        // Verificação para garantir que não há tracer ativo
+        const { gravando } = await chrome.storage.local.get(['gravando']);
+        if (gravando) {
+            console.error("Não é possível iniciar crawler: tracer está ativo");
+            return;
+        }
+
         await chrome.storage.local.set({ isCrawling: true });
         const initialState = {
             linksPorPai: [],

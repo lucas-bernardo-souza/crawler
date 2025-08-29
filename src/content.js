@@ -486,6 +486,47 @@ class WebTracer {
         this.initializeFromStorage();
     }
 
+    // === COMUNICAÇÃO DO TRACER COM O BACKGROUND ===
+
+    setupMessageListener() {
+        chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+            if (request.action === "startRecording") {
+                this.gravando = true;
+                this.xmlTracer = request.xmlTracer;
+                this.iniciaTracer();
+                sendResponse({ status: "recording_started" });
+                return true;
+            }
+            
+            if (request.action === "stopRecording") {
+                this.gravando = false;
+                this.salvarXMLTracer();
+                sendResponse({ status: "recording_stopped" });
+                return true;
+            }
+            
+            if (request.action === "tracerContentScriptReady") {
+                sendResponse({
+                    shouldRecord: this.gravando,
+                    tracerState: this.getCurrentState()
+                });
+                return true;
+            }
+        });
+    }
+
+    getCurrentState() {
+        return {
+            xmlFinalTracer: this.xmlFinalTracer,
+            xmlInteracoes: this.xmlInteracoes,
+            gravando: this.gravando,
+            xmlTracer: this.xmlTracer,
+            numInteracoes: this.numInteracoes,
+            tempoInteracao: this.tempoInteracao
+        };
+    }
+    // ========================
+
     async initializeFromStorage() {
         try {
             const result = await chrome.storage.local.get([
@@ -758,6 +799,352 @@ class WebTracer {
         
         // Aqui você implementaria a lógica completa de mapeamento
         // para o XML de interações conforme o original
+
+        if(tipo == 'page') {
+            var idSrcLink = 0;
+            var idIniStateLink = 0;
+            var idFinalStateLink = 0;
+            var idEventLink = 0;
+            var idSrcPage = 0;
+            var idTargetPage = 0;
+            var idIniState = 0;
+            var idFimState = 0;
+            var idSrcEvent = 0;
+            var idTargetEvent = 0;
+            var urlMapa = window.location.href;
+            var sourceID = 0;
+
+            url = url.split('#')[0];
+            url = url.split('?')[0];
+            url = url.replace('index.html', '');
+            url = url.replace('index.html/', '');
+            url = url.replace('index.php/', '');
+            url = url.replace('index.php', '');
+            url = url.replace('index.asp', '');
+            url = url.replace('index.asp/', '');
+            urlMapa = urlMapa.split('#')[0];
+            urlMapa = urlMapa.split('?')[0];
+            urlMapa = urlMapa.replace('index.html', '');
+            urlMapa = urlMapa.replace('index.html/', '');
+            urlMapa = urlMapa.replace('index.php/', '');
+            urlMapa = urlMapa.replace('index.php', '');
+            urlMapa = urlMapa.replace('index.asp', '');
+            urlMapa = urlMapa.replace('index.asp/', '');
+            
+            xmlJquery.find('pages page').each(function(){
+                if( $(this).attr('url') == url){
+                    //console.log('idTargetPage: '+$(this).attr('node_id'));
+                    idTargetPage = $(this).attr('node_id');
+                    $(this).find('state').each(function(i){
+                        if( $(this).attr('name') == 'onLoad' ){
+                            //console.log('idIniState: '+$(this).attr('state_id'));
+                            idIniState = $(this).attr('state_id');
+                        }
+                        if( $(this).attr('name') == 'Load' ){
+                            //console.log('idFimState: '+$(this).attr('state_id'));
+                            idFimState = $(this).attr('state_id');
+                        }
+                    });
+                    $(this).find('event').each(function(i){
+                        if( $(this).attr('name') == 'onLoad' ){
+                            //console.log('idTargetEvent: '+$(this).attr('event_id'));
+                            idTargetEvent = $(this).attr('event_id');
+                        }
+                    });
+                }
+                if( $(this).attr('url') == urlMapa){
+                    //console.log('idSrcPage: '+$(this).attr('node_id'));
+                    idSrcPage = $(this).attr('node_id');
+                    $(this).find('component').each(function(i){
+                        if( $(this).attr('dom_id') == domId){
+                        //console.log('sourceID: '+$(this).attr('item_id'));
+                            sourceID = $(this).attr('item_id');
+                            $(this).find('event').each(function(i){
+                                if( $(this).attr('name') ==  evento){
+                                    //console.log('idSrcEvent: '+$(this).attr('event_id'));
+                                    idSrcEvent = $(this).attr('event_id');
+                                }
+                            });
+                            $(this).find('state').each(function(i){
+                                if( $(this).attr('name') ==  'visited'){
+                                    //console.log('idSrcEvent: '+$(this).attr('state_id'));
+                                    idFinalStateLink = $(this).attr('state_id');
+                                }
+                                if( $(this).attr('name') ==  'not visited'){
+                                    //console.log('idIniStateLink: '+$(this).attr('state_id'));
+                                    idIniStateLink = $(this).attr('state_id');
+                                }
+                            }); 
+                        }
+                    });
+                }
+            });
+            xmlInteracoes += '\t\t<interaction id_int="'+numInteracoes+'" initialState="'+idIniStateLink+'" finalState="'+idFinalStateLink+'" event_source="" event_target="'+idSrcEvent+'" source_id="'+sourceID+'" type_source="component" target_id="'+idTargetPage+'" type_target="page">'+(tempoInteracao+tempo)+'</interaction>\n';
+            numInteracoes++;
+            //xmlInteracoes += '\t\t<interaction id_int="'+numInteracoes+'" initialState="'+idIniState+'" finalState="'+idFimState+'" event_source="'+idSrcEvent+'" event_target="'+idTargetEvent+'" source_id="'+idSrcPage+'" type_source="page" target_id="'+idTargetPage+'" type_target="page">'+(tempoInteracao+tempo+50)+'</interaction>\n';
+            xmlInteracoes += '\t\t<interaction id_int="'+numInteracoes+'" initialState="'+idIniState+'" finalState="'+idFimState+'" event_source="'+idSrcEvent+'" event_target="'+idTargetEvent+'" source_id="'+idTargetPage+'" type_source="page" target_id="'+idTargetPage+'" type_target="page">'+(tempoInteracao+tempo+50)+'</interaction>\n';
+            numInteracoes++;
+        }
+        if(tipo == 'button'){
+            var idIniState = 0;
+            var idFimState = 0;
+            var idTargetEvent = 0;
+            var idTarget = 0;
+            var urlMapa = window.location.href;
+            urlMapa = urlMapa.split('#')[0];
+            urlMapa = urlMapa.split('?')[0];
+            urlMapa = urlMapa.replace('index.html', '');
+            urlMapa = urlMapa.replace('index.html/', '');
+            urlMapa = urlMapa.replace('index.php/', '');
+            urlMapa = urlMapa.replace('index.php', '');
+            urlMapa = urlMapa.replace('index.asp', '');
+            urlMapa = urlMapa.replace('index.asp/', '');
+
+            xmlJquery.find('pages page').each(function(){
+                if( $(this).attr('url') == urlMapa){
+                    $(this).find('component').each(function(i){
+                        if( $(this).attr('dom_id') == domId){
+                            idTarget = $(this).attr('item_id');
+                            $(this).find('state').each(function(i){
+                                if( $(this).attr('name') == 'selected' ){
+                                    //console.log('idIniState: '+$(this).attr('state_id'));
+                                    idFimState = $(this).attr('state_id');
+                                }
+                                if( $(this).attr('name') == 'notselected' ){
+                                    //console.log('idFimState: '+$(this).attr('state_id'));
+                                    idIniState = $(this).attr('state_id');
+                                }
+                            });
+                            $(this).find('event').each(function(i){
+                                if( $(this).attr('name') == evento ){
+                                    //console.log('idTargetEvent: '+$(this).attr('event_id'));
+                                    idTargetEvent = $(this).attr('event_id');
+                                }
+                            });
+                        }
+                    });   
+                }    
+            });
+            xmlInteracoes += '\t\t<interaction id_int="'+numInteracoes+'" initialState="'+idIniState+'" finalState="'+idFimState+'" event_source="'+idTargetEvent+'" event_target="'+idTargetEvent+'" source_id="'+idTarget+'" type_source="component" target_id="'+idTarget+'" type_target="component">'+(tempoInteracao+tempo)+'</interaction>\n';
+            numInteracoes++;
+            console.log('monitorou');
+        }
+        if(tipo == 'input'){
+            var idIniState = 0;
+            var idFimState = 0;
+            var idTargetEvent = 0;
+            var idTarget = 0;
+            var urlMapa = window.location.href;
+            urlMapa = urlMapa.split('#')[0];
+            urlMapa = urlMapa.split('?')[0];
+            urlMapa = urlMapa.replace('index.html', '');
+            urlMapa = urlMapa.replace('index.html/', '');
+            urlMapa = urlMapa.replace('index.php/', '');
+            urlMapa = urlMapa.replace('index.php', '');
+            urlMapa = urlMapa.replace('index.asp', '');
+            urlMapa = urlMapa.replace('index.asp/', '');
+            xmlJquery.find('pages page').each(function(){
+                if( $(this).attr('url') == urlMapa){   
+                    $(this).find('component').each(function(i){
+                        if( $(this).attr('dom_id') == domId){
+                            idTarget = $(this).attr('item_id');
+                            var valor = $('body *').eq(domId).val();
+                            if(valor == ''){
+                                $(this).find('state').each(function(i){
+                                    if( $(this).attr('name') == 'empty' ){
+                                        //console.log('idIniState: '+$(this).attr('state_id'));
+                                        idFimState = $(this).attr('state_id');
+                                        idIniState = $(this).attr('state_id');
+                                    }
+                                });
+                            }else{
+                                $(this).find('state').each(function(i){
+                                    if( $(this).attr('name') == 'notEmpty' ){
+                                        //console.log('idIniState: '+$(this).attr('state_id'));
+                                        idFimState = $(this).attr('state_id');
+                                        idIniState = $(this).attr('state_id');
+                                    }
+                                });
+                            }
+                            $(this).find('event').each(function(i){
+                                if( $(this).attr('name') == evento ){
+                                    //console.log('idTargetEvent: '+$(this).attr('event_id'));
+                                    idTargetEvent = $(this).attr('event_id');
+                                }
+                            });
+                        }
+                    });   
+                }    
+            });
+            xmlInteracoes += '\t\t<interaction id_int="'+numInteracoes+'" initialState="'+idIniState+'" finalState="'+idFimState+'" event_source="'+idTargetEvent+'" event_target="'+idTargetEvent+'" source_id="'+idTarget+'" type_source="component" target_id="'+idTarget+'" type_target="component">'+(tempoInteracao+tempo)+'</interaction>\n';
+            numInteracoes++;
+            console.log('monitorou');
+        }
+        if(tipo == 'check'){
+            var idIniState = 0;
+            var idFimState = 0;
+            var idTargetEvent = 0;
+            var idTarget = 0;
+            var urlMapa = window.location.href;
+            urlMapa = urlMapa.split('#')[0];
+            urlMapa = urlMapa.split('?')[0];
+            urlMapa = urlMapa.replace('index.html', '');
+            urlMapa = urlMapa.replace('index.html/', '');
+            urlMapa = urlMapa.replace('index.php/', '');
+            urlMapa = urlMapa.replace('index.php', '');
+            urlMapa = urlMapa.replace('index.asp', '');
+            urlMapa = urlMapa.replace('index.asp/', '');
+            xmlJquery.find('pages page').each(function(){
+                if( $(this).attr('url') == urlMapa){   
+                    $(this).find('component').each(function(i){
+                        if( $(this).attr('dom_id') == domId){
+                            idTarget = $(this).attr('item_id');
+                            var valor = $('body *').eq(domId).prop('checked');
+                            if(valor == true){
+                                $(this).find('state').each(function(i){
+                                    if( $(this).attr('name') == 'notChecked' ){
+                                        //console.log('idIniState: '+$(this).attr('state_id'));
+                                        idFimState = $(this).attr('state_id');      
+                                    }
+                                    if( $(this).attr('name') == 'checked' ){
+                                        //console.log('idIniState: '+$(this).attr('state_id'));   
+                                        idIniState = $(this).attr('state_id');
+                                    }
+                                });
+                            }else{
+                                $(this).find('state').each(function(i){
+                                    if( $(this).attr('name') == 'checked' ){
+                                        //console.log('idIniState: '+$(this).attr('state_id'));
+                                        idFimState = $(this).attr('state_id');
+                                    }
+                                    if( $(this).attr('name') == 'notChecked' ){
+                                        //console.log('idIniState: '+$(this).attr('state_id'));  
+                                        idIniState = $(this).attr('state_id');
+                                    }
+                                });
+                            }
+                            $(this).find('event').each(function(i){
+                                if( $(this).attr('name') == evento ){
+                                    //console.log('idTargetEvent: '+$(this).attr('event_id'));
+                                    idTargetEvent = $(this).attr('event_id');
+                                }
+                            });
+                        }
+                    });   
+                }    
+            });
+            xmlInteracoes += '\t\t<interaction id_int="'+numInteracoes+'" initialState="'+idIniState+'" finalState="'+idFimState+'" event_source="'+idTargetEvent+'" event_target="'+idTargetEvent+'" source_id="'+idTarget+'" type_source="component" target_id="'+idTarget+'" type_target="component">'+(tempoInteracao+tempo)+'</interaction>\n';
+            numInteracoes++;
+            console.log('monitorou');
+        }
+        if(tipo == 'radio'){
+            var idIniState = 0;
+            var idFimState = 0;
+            var idTargetEvent = 0;
+            var idTarget = 0;
+            var urlMapa = window.location.href;
+            urlMapa = urlMapa.split('#')[0];
+            urlMapa = urlMapa.split('?')[0];
+            urlMapa = urlMapa.replace('index.html', '');
+            urlMapa = urlMapa.replace('index.html/', '');
+            urlMapa = urlMapa.replace('index.php/', '');
+            urlMapa = urlMapa.replace('index.php', '');
+            urlMapa = urlMapa.replace('index.asp', '');
+            urlMapa = urlMapa.replace('index.asp/', '');
+            xmlJquery.find('pages page').each(function(){
+                if( $(this).attr('url') == urlMapa){
+                    $(this).find('component').each(function(i){
+                        if( $(this).attr('dom_id') == domId){
+                            idTarget = $(this).attr('item_id');
+                            var valor = $('body *').eq(domId).prop('checked');
+                            if(valor == true){
+                                $(this).find('state').each(function(i){
+                                    if( $(this).attr('name') == 'notChecked' ){
+                                        //console.log('idIniState: '+$(this).attr('state_id'));
+                                        idFimState = $(this).attr('state_id');    
+                                    }
+                                    if( $(this).attr('name') == 'checked' ){
+                                        //console.log('idIniState: '+$(this).attr('state_id'));   
+                                        idIniState = $(this).attr('state_id');
+                                    }
+                                });
+                            }else{
+                                $(this).find('state').each(function(i){
+                                    if( $(this).attr('name') == 'checked' ){
+                                        //console.log('idIniState: '+$(this).attr('state_id'));
+                                        idFimState = $(this).attr('state_id');
+                                    }
+                                    if( $(this).attr('name') == 'notChecked' ){
+                                        //console.log('idIniState: '+$(this).attr('state_id'));
+                                        idIniState = $(this).attr('state_id');
+                                    }
+                                });
+                            }
+                            $(this).find('event').each(function(i){
+                                if( $(this).attr('name') == evento ){
+                                    //console.log('idTargetEvent: '+$(this).attr('event_id'));
+                                    idTargetEvent = $(this).attr('event_id');
+                                }
+                            });
+                        }
+                    });   
+                }    
+            });
+            xmlInteracoes += '\t\t<interaction id_int="'+numInteracoes+'" initialState="'+idIniState+'" finalState="'+idFimState+'" event_source="'+idTargetEvent+'" event_target="'+idTargetEvent+'" source_id="'+idTarget+'" type_source="component" target_id="'+idTarget+'" type_target="component">'+(tempoInteracao+tempo)+'</interaction>\n';
+            numInteracoes++;
+            console.log('monitorou');
+        }
+        if(tipo == 'select'){
+            var idIniState = 0;
+            var idFimState = 0;
+            var idTargetEvent = 0;
+            var idTarget = 0;
+            var urlMapa = window.location.href;
+            urlMapa = urlMapa.split('#')[0];
+            urlMapa = urlMapa.split('?')[0];
+            urlMapa = urlMapa.replace('index.html', '');
+            urlMapa = urlMapa.replace('index.html/', '');
+            urlMapa = urlMapa.replace('index.php/', '');
+            urlMapa = urlMapa.replace('index.php', '');
+            urlMapa = urlMapa.replace('index.asp', '');
+            urlMapa = urlMapa.replace('index.asp/', '');
+            xmlJquery.find('pages page').each(function(){
+                if( $(this).attr('url') == urlMapa){  
+                    $(this).find('component').each(function(i){
+                        if( $(this).attr('dom_id') == domId){
+                            idTarget = $(this).attr('item_id');
+                            var valor = $('body *').eq(domId).val();
+                            if(valor == ''){
+                                $(this).find('state').each(function(i){
+                                    if( $(this).attr('name') == 'default' ){
+                                        //console.log('idIniState: '+$(this).attr('state_id'));
+                                        idFimState = $(this).attr('state_id');
+                                        idIniState = $(this).attr('state_id');
+                                    }
+                                });
+                            }else{
+                                $(this).find('state').each(function(i){
+                                    if( $(this).attr('name') == 'notDefault' ){
+                                        //console.log('idIniState: '+$(this).attr('state_id'));
+                                        idFimState = $(this).attr('state_id');
+                                        idIniState = $(this).attr('state_id');
+                                    }
+                                });
+                            }
+                            $(this).find('event').each(function(i){
+                                if( $(this).attr('name') == evento ){
+                                    //console.log('idTargetEvent: '+$(this).attr('event_id'));
+                                    idTargetEvent = $(this).attr('event_id');
+                                }
+                            });
+                        }
+                    });   
+                }    
+            });
+            xmlInteracoes += '\t\t<interaction id_int="'+numInteracoes+'" initialState="'+idIniState+'" finalState="'+idFimState+'" event_source="'+idTargetEvent+'" event_target="'+idTargetEvent+'" source_id="'+idTarget+'" type_source="component" target_id="'+idTarget+'" type_target="component">'+(tempoInteracao+tempo)+'</interaction>\n';
+            numInteracoes++;
+            console.log('monitorou');
+        }
     }
 
     atualizaDinamicos() {
@@ -828,8 +1215,19 @@ class WebTracer {
 // Adicionar ao initialization existente
 let tracer = null;
 
-function initializeTracer() {
-    tracer = new WebTracer();
+async function initializeTracer() {
+    try {
+        const response = await chrome.runtime.sendMessage({ 
+            action: "tracerContentScriptReady" 
+        });
+        
+        if (response && response.shouldRecord) {
+            tracer = new WebTracer();
+            tracer.initializeState(response.tracerState);
+        }
+    } catch (error) {
+        console.error("Erro ao inicializar tracer:", error);
+    }
 }
 
 // Inicializar quando o content script carregar
