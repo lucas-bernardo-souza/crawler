@@ -75,6 +75,7 @@ class WebCrawler {
         this.numEvento = state.numEvento || 1;
         this.numState = state.numState || 1;
         this.index = state.index || 'true';
+        this.numEdge = state.numEdge || 1;
     }
 
     getCurrentState() {
@@ -86,7 +87,8 @@ class WebCrawler {
             numComponente: this.numComponente,
             numEvento: this.numEvento,
             numState: this.numState,
-            index: this.index
+            index: this.index,
+            numEdge: this.numEdge
         };
     }
 
@@ -280,15 +282,17 @@ class WebCrawler {
     }
 
     adicionaLinkAcessado(linkU) {
-        const url = new URL(linkU, window.location.origin).href.split('#')[0].split('?')[0];
-        if (!this.linksAcessados.includes(url)) {
-            this.linksAcessados.push(url);
+        const normalizedUrl = this.normalizeLinkUrl(linkU);
+        if (!this.verificaLinkAcessado(normalizedUrl)) {
+            this.linksAcessados.push(normalizedUrl);
         }
     }
 
     verificaLinkAcessado(linkU) {
-        const url = new URL(linkU, window.location.origin).href.split('#')[0].split('?')[0];
-        return this.linksAcessados.includes(url);
+        const normalizedUrl = this.normalizeLinkUrl(linkU);
+        return this.linksAcessados.some(link => 
+            this.normalizeLinkUrl(link) === normalizedUrl
+        );
     }
 
     acessaProximoLink() {
@@ -297,12 +301,14 @@ class WebCrawler {
         console.log("Links acessados:", this.linksAcessados);
 
         let proximoLink = '';
+        let linkInfoCompleto = null;
 
         for (const page of this.linksPorPai) {
             if (page.links) {
                 for (const linkInfo of page.links) {
                     if (!this.verificaLinkAcessado(linkInfo.link)) {
                         proximoLink = linkInfo.link;
+                        linkInfoCompleto = linkInfo;
                         console.log("Próximo link encontrado:", proximoLink);
                         break;
                     }
@@ -346,6 +352,29 @@ class WebCrawler {
         document.body.appendChild(statusDiv);
     }
 
+    normalizeLinkUrl(url){
+        if (!url) return '';
+    
+        try {
+            // Converter para URL absoluta
+            const absoluteUrl = new URL(url, window.location.href).href;
+            const urlObj = new URL(absoluteUrl);
+            
+            // Normalizar igual ao original
+            let normalized = urlObj.origin + urlObj.pathname;
+            normalized = normalized.replace(/index\.(html|php|asp)$/i, '');
+            normalized = normalized.replace(/\/$/, '');
+            
+            return normalized;
+        } catch (e) {
+            console.warn('Erro ao normalizar URL:', url, e);
+            // Fallback
+            return url.split('?')[0].split('#')[0]
+                    .replace(/index\.(html|php|asp)/gi, '')
+                    .replace(/\/$/, '');
+        }
+    }
+
     finalizaCrawler() {
         // Finalizar a página atual com eventos e estados de página
         this.xmlSite += '\t\t<event name="onLoad" node_id="'+this.numPagina+'" item_id="null" event_id="'+this.numEvento+'"/>\n';
@@ -369,7 +398,6 @@ class WebCrawler {
 
         // Iniciar a seção de edges com contador
         this.xmlSite += '\t<edges>\n';
-        let numEdge = 1;
 
         // Gerar edges (conexões entre páginas)
         this.linksPorPai.forEach(page => {
@@ -383,11 +411,11 @@ class WebCrawler {
                     
                     if (targetPageId > 0 && linkInfo.evento && linkInfo.evento2) {
                         // Formato COMPATÍVEL com o tracer original
-                        this.xmlSite += `\t\t<edge ed_id="${numEdge}" source="${page.id}" target="${targetPageId}" ref_item_id="${linkInfo.componente}">\n`;
+                        this.xmlSite += `\t\t<edge ed_id="${this.numEdge}" source="${page.id}" target="${targetPageId}" ref_item_id="${linkInfo.componente}">\n`;
                         this.xmlSite += `\t\t\t<data event_id="${linkInfo.evento}">click</data>\n`;
                         this.xmlSite += `\t\t\t<data event_id="${linkInfo.evento2}">enter</data>\n`;
                         this.xmlSite += '\t\t</edge>\n';
-                        numEdge++;
+                        this.numEdge++;
                     }
                 });
             }
@@ -900,13 +928,13 @@ class WebTracer {
                 
                 for (const event of events) {
                     const itemId = event.getAttribute('item_id');
-                    if (itemId === 'null' && event.getAttribute('name') === 'onload') {
+                    if (itemId === 'null' && event.getAttribute('name') === 'onLoad') {
                         idTargetEvent = event.getAttribute('event_id');
                     }
                 }
             }
             
-            if (pageUrl === urlMapa) {
+            if (this.normalizeUrl(pageUrl) === this.normalizeUrl(urlMapa)) {
                 idSrcPage = page.getAttribute('node_id');
                 const components = page.querySelectorAll('component');
                 
