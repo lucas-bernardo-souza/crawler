@@ -229,20 +229,29 @@ class WebCrawler {
                 break;
 
             case 'textarea':
+                this.xmlSite += `\t\t\t<component type="input" dom_id="${dom_id}" node_id="${this.numPagina}" item_id="${this.numComponente}" name="${this.verificaVazio(elemento.getAttribute('name'))}">\n`;
+                // ... eventos ...
+                this.xmlSite += `\t\t\t\t<state name="empty" node_id="${this.numPagina}" item_id="${this.numComponente}" state_id="${this.numState}"></state>\n`;
+                this.numState++;
+                this.xmlSite += `\t\t\t\t<state name="notEmpty" node_id="${this.numPagina}" item_id="${this.numComponente}" state_id="${this.numState}"></state>\n`;
+                this.numState++;
+                this.xmlSite += `\t\t\t\t<state name="disabled" node_id="${this.numPagina}" item_id="${this.numComponente}" state_id="${this.numState}"></state>\n`;
+                this.numState++;
+                this.xmlSite += `\t\t\t\t<state name="readOnly" node_id="${this.numPagina}" item_id="${this.numComponente}" state_id="${this.numState}"></state>\n`;
+                this.numState++;
+                this.xmlSite += '\t\t\t</component>\n';
+                break;
             case 'select':
-                this.xmlSite += `\t\t\t<component type="${tag}" dom_id="${dom_id}" node_id="${this.numPagina}" item_id="${this.numComponente}" name="${this.verificaVazio(elemento.getAttribute('name'))}">\n`;
-                this.xmlSite += `\t\t\t\t<event name="focus" node_id="${this.numPagina}" item_id="${this.numComponente}" event_id="${this.numEvento}"></event>\n`;
-                this.numEvento++;
-                this.xmlSite += `\t\t\t\t<event name="blur" node_id="${this.numPagina}" item_id="${this.numComponente}" event_id="${this.numEvento}"></event>\n`;
-                this.numEvento++;
-                this.xmlSite += `\t\t\t\t<event name="change" node_id="${this.numPagina}" item_id="${this.numComponente}" event_id="${this.numEvento}"></event>\n`;
-                this.numEvento++;
+                this.xmlSite += `\t\t\t<component type="select" dom_id="${dom_id}" node_id="${this.numPagina}" item_id="${this.numComponente}" name="${this.verificaVazio(elemento.getAttribute('name'))}">\n`;
+                // ... eventos ...
+                this.xmlSite += `\t\t\t\t<state name="notDefault" node_id="${this.numPagina}" item_id="${this.numComponente}" state_id="${this.numState}"></state>\n`;
+                this.numState++;
+                this.xmlSite += `\t\t\t\t<state name="default" node_id="${this.numPagina}" item_id="${this.numComponente}" state_id="${this.numState}"></state>\n`;
+                this.numState++;
                 this.xmlSite += `\t\t\t\t<state name="disabled" node_id="${this.numPagina}" item_id="${this.numComponente}" state_id="${this.numState}"></state>\n`;
                 this.numState++;
                 this.xmlSite += '\t\t\t</component>\n';
-                this.numComponente++;
                 break;
-
             case 'button':
                 this.xmlSite += `\t\t\t<component type="button" dom_id="${dom_id}" node_id="${this.numPagina}" item_id="${this.numComponente}" name="${this.verificaVazio(elemento.getAttribute('name'))}">\n`;
                 this.xmlSite += `\t\t\t\t<event name="click" node_id="${this.numPagina}" item_id="${this.numComponente}" event_id="${this.numEvento}"></event>\n`;
@@ -377,13 +386,13 @@ class WebCrawler {
 
     finalizaCrawler() {
         // Finalizar a página atual com eventos e estados de página
-        this.xmlSite += '\t\t<event name="onLoad" node_id="'+this.numPagina+'" item_id="null" event_id="'+this.numEvento+'"/>\n';
+         this.xmlSite += `\t\t<event name="onLoad" node_id="${this.numPagina}" item_id="null" event_id="${this.numEvento}"/>\n`;
         this.numEvento++;
         
-        this.xmlSite += '\t\t<state name="onLoad" node_id="'+this.numPagina+'" item_id="null" state_id="'+this.numState+'"/>\n';
+        this.xmlSite += `\t\t<state name="onLoad" node_id="${this.numPagina}" item_id="null" state_id="${this.numState}"/>\n`;
         this.numState++;
         
-        this.xmlSite += '\t\t<state name="Load" node_id="'+this.numPagina+'" item_id="null" state_id="'+this.numState+'"/>\n';
+        this.xmlSite += `\t\t<state name="Load" node_id="${this.numPagina}" item_id="null" state_id="${this.numState}"/>\n`;
         this.numState++;
         
         this.xmlSite += '\t\t</page>\n\n';
