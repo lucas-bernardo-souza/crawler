@@ -94,6 +94,23 @@ class WebCrawler {
 
     processaDom() {
         try {
+            // Estrutura inicial da página
+            const url = window.location.href;
+            const title = document.title.replace("&", "");
+            this.adicionaLinkAcessado(url);
+            
+            this.xmlSite += `\t\t<page url="${url}" titulo="${title}" node_id="${this.numPagina}" index="${this.index}">\n`;
+            this.xmlSite += `\t\t<event name="onLoad" node_id="${this.numPagina}" item_id="null" event_id="${this.numEvento}"/>\n`;
+            this.numEvento++;
+            this.xmlSite += `\t\t<state name="onLoad" node_id="${this.numPagina}" item_id="null" state_id="${this.numState}"/>\n`;
+            this.numState++;
+            this.xmlSite += `\t\t<state name="Load" node_id="${this.numPagina}" item_id="null" state_id="${this.numState}"/>\n`;
+            this.numState++;
+
+            if(this.index === 'true'){
+                this.index = 'false';
+            }
+
             // Coletar elementos do documento principal
             this.DOM = Array.from(document.body.querySelectorAll('*'));
 
@@ -161,7 +178,7 @@ class WebCrawler {
                         });
                     }
 
-                    this.xmlSite += `\t\t\t<component type="link" dom_id="${dom_id}" node_id="${this.numPagina}" item_id="${this.numComponente}" name="${this.verificaVazio(elemento.textContent)}" externo="${externo}">\n`;
+                    this.xmlSite += `\t\t\t<component type="link" dom_id="${dom_id}" node_id="${this.numPagina}" item_id="${this.numComponente}" name="${this.verificaVazio(elemento.textContent)}" externo="${externo ? 'true' : 'false'}">\n`;
                     this.xmlSite += `\t\t\t\t<event name="click" node_id="${this.numPagina}" item_id="${this.numComponente}" event_id="${this.numEvento}"><![CDATA[${elemento.getAttribute('href')}]]></event>\n`;
                     this.numEvento++;
                     this.xmlSite += `\t\t\t\t<event name="enter" node_id="${this.numPagina}" item_id="${this.numComponente}" event_id="${this.numEvento}"><![CDATA[${elemento.getAttribute('href')}]]></event>\n`;
@@ -230,27 +247,54 @@ class WebCrawler {
 
             case 'textarea':
                 this.xmlSite += `\t\t\t<component type="input" dom_id="${dom_id}" node_id="${this.numPagina}" item_id="${this.numComponente}" name="${this.verificaVazio(elemento.getAttribute('name'))}">\n`;
-                // ... eventos ...
+                this.xmlSite += `\t\t\t\t<event name="focus" node_id="${this.numPagina}" item_id="${this.numComponente}" event_id="${this.numEvento}"></event>\n`;
+                this.numEvento++;
+                
+                this.xmlSite += `\t\t\t\t<event name="blur" node_id="${this.numPagina}" item_id="${this.numComponente}" event_id="${this.numEvento}"></event>\n`;
+                this.numEvento++;
+
+                this.xmlSite += `\t\t\t\t<event name="change" node_id="${this.numPagina}" item_id="${this.numComponente}" event_id="${this.numEvento}"></event>\n`;
+                this.numEvento++;
+
+                // ESTADOS ADICIONADOS
                 this.xmlSite += `\t\t\t\t<state name="empty" node_id="${this.numPagina}" item_id="${this.numComponente}" state_id="${this.numState}"></state>\n`;
                 this.numState++;
+
                 this.xmlSite += `\t\t\t\t<state name="notEmpty" node_id="${this.numPagina}" item_id="${this.numComponente}" state_id="${this.numState}"></state>\n`;
                 this.numState++;
+
                 this.xmlSite += `\t\t\t\t<state name="disabled" node_id="${this.numPagina}" item_id="${this.numComponente}" state_id="${this.numState}"></state>\n`;
                 this.numState++;
+
                 this.xmlSite += `\t\t\t\t<state name="readOnly" node_id="${this.numPagina}" item_id="${this.numComponente}" state_id="${this.numState}"></state>\n`;
                 this.numState++;
+
                 this.xmlSite += '\t\t\t</component>\n';
+                this.numComponente++;
                 break;
             case 'select':
                 this.xmlSite += `\t\t\t<component type="select" dom_id="${dom_id}" node_id="${this.numPagina}" item_id="${this.numComponente}" name="${this.verificaVazio(elemento.getAttribute('name'))}">\n`;
-                // ... eventos ...
+                this.xmlSite += `\t\t\t\t<event name="focus" node_id="${this.numPagina}" item_id="${this.numComponente}" event_id="${this.numEvento}"></event>\n`;
+                this.numEvento++;
+                
+                this.xmlSite += `\t\t\t\t<event name="blur" node_id="${this.numPagina}" item_id="${this.numComponente}" event_id="${this.numEvento}"></event>\n`;
+                this.numEvento++;
+
+                this.xmlSite += `\t\t\t\t<event name="change" node_id="${this.numPagina}" item_id="${this.numComponente}" event_id="${this.numEvento}"></event>\n`;
+                this.numEvento++;
+
+                // ESTADOS ADICIONADOS
                 this.xmlSite += `\t\t\t\t<state name="notDefault" node_id="${this.numPagina}" item_id="${this.numComponente}" state_id="${this.numState}"></state>\n`;
                 this.numState++;
+
                 this.xmlSite += `\t\t\t\t<state name="default" node_id="${this.numPagina}" item_id="${this.numComponente}" state_id="${this.numState}"></state>\n`;
                 this.numState++;
+
                 this.xmlSite += `\t\t\t\t<state name="disabled" node_id="${this.numPagina}" item_id="${this.numComponente}" state_id="${this.numState}"></state>\n`;
                 this.numState++;
+
                 this.xmlSite += '\t\t\t</component>\n';
+                this.numComponente++;
                 break;
             case 'button':
                 this.xmlSite += `\t\t\t<component type="button" dom_id="${dom_id}" node_id="${this.numPagina}" item_id="${this.numComponente}" name="${this.verificaVazio(elemento.getAttribute('name'))}">\n`;
@@ -274,7 +318,11 @@ class WebCrawler {
             if (!filter.test(texto)) {
                 return "";
             } else {
-                return texto.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+                return texto.replace(/&/g, "&amp;")
+                       .replace(/</g, "&lt;")
+                       .replace(/>/g, "&gt;")
+                       .replace(/"/g, "&quot;")
+                       .replace(/'/g, "&apos;");
             }
         } else {
             return '';
@@ -283,8 +331,9 @@ class WebCrawler {
 
     checkMedia(url) {
         try {
-            const path = new URL(url).pathname;
-            return (path.match(/\.(jpeg|jpg|gif|png|mp3|svg|mp4|avi|pdf|doc|docx|xls|xlsx|ppt|pptx)$/i) !== null);
+            const urlObj = new URL(url, window.location.href);
+            const path = urlObj.pathname.toLowerCase();
+            return path.match(/\.(jpeg|jpg|gif|png|mp3|svg|mp4|avi|pdf|doc|docx|xls|xlsx|ppt|pptx)$/) !== null;
         } catch (e) {
             return false;
         }
@@ -366,12 +415,17 @@ class WebCrawler {
     
         try {
             // Converter para URL absoluta
-            const absoluteUrl = new URL(url, window.location.href).href;
-            const urlObj = new URL(absoluteUrl);
-            
-            // Normalizar igual ao original
-            let normalized = urlObj.origin + urlObj.pathname;
-            normalized = normalized.replace(/index\.(html|php|asp)$/i, '');
+            const urlObj = new URL(url, window.location.href);
+            let normalized = urlObj.href;
+
+            normalized = normalized.split('#')[0];
+            normalized = normalized.split('?')[0];
+            normalized = normalized.replace(/index\.html$/i, '');
+            normalized = normalized.replace(/index\.html\//i, '');
+            normalized = normalized.replace(/index\.php\//i, '');
+            normalized = normalized.replace(/index\.php$/i, '');
+            normalized = normalized.replace(/index\.asp$/i, '');
+            normalized = normalized.replace(/index\.asp\//i, '');
             normalized = normalized.replace(/\/$/, '');
             
             return normalized;
@@ -379,22 +433,18 @@ class WebCrawler {
             console.warn('Erro ao normalizar URL:', url, e);
             // Fallback
             return url.split('?')[0].split('#')[0]
-                    .replace(/index\.(html|php|asp)/gi, '')
-                    .replace(/\/$/, '');
+                .replace(/index\.html$/i, '')
+                .replace(/index\.html\//i, '')
+                .replace(/index\.php\//i, '')
+                .replace(/index\.php$/i, '')
+                .replace(/index\.asp$/i, '')
+                .replace(/index\.asp\//i, '')
+                .replace(/\/$/, '');
         }
     }
 
     finalizaCrawler() {
-        // Finalizar a página atual com eventos e estados de página
-         this.xmlSite += `\t\t<event name="onLoad" node_id="${this.numPagina}" item_id="null" event_id="${this.numEvento}"/>\n`;
-        this.numEvento++;
-        
-        this.xmlSite += `\t\t<state name="onLoad" node_id="${this.numPagina}" item_id="null" state_id="${this.numState}"/>\n`;
-        this.numState++;
-        
-        this.xmlSite += `\t\t<state name="Load" node_id="${this.numPagina}" item_id="null" state_id="${this.numState}"/>\n`;
-        this.numState++;
-        
+        // Fechamento da página
         this.xmlSite += '\t\t</page>\n\n';
 
         // Limpar timeout de segurança
@@ -884,15 +934,18 @@ class WebTracer {
         if(!url) return '';
 
         try{
-            const urlObj = new URL(url);
-            let path = urlObj.pathname;
+            const urlObj = new URL(url, window.location.href);
+            let normalized = urlObj.origin + urlObj.pathname;
 
-            // Remover apenas arquivos index no final do path
-            path = path.replace(/(\/)(index\.(html|php|asp))?$/i, '/');
+            normalized = normalized.replace(/index\.(html|php|asp)$/i, '');
+            normalized = normalized.replace(/\/$/, '');
+            normalized = normalized.split('?')[0].split('#')[0];
 
-            return `${urlObj.origin}${path}${urlObj.search}`;
+            return normalized;
         } catch (e){
-            return url.split('?')[0].split('#')[0].replace(/index\.(html|php|asp)/gi, '');
+            return url.split('?')[0].split('#')[0]
+                    .replace(/index\.(html|php|asp)/gi, '')
+                    .replace(/\/$/, '');
         }
     }
 
