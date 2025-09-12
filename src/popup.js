@@ -291,9 +291,9 @@ function updateBrowserActionIcon(iconPath) {
     try {
         chrome.action.setIcon({
             path: {
-                "16": `../public/icons/${iconPath}`,
-                "48": `../public/icons/${iconPath}`,
-                "128": `../public/icons/${iconPath}`
+                "16": `icons/${iconPath}`,
+                "48": `icons/${iconPath}`,
+                "128": `icons/${iconPath}`
             }
         });
     } catch (error) {
