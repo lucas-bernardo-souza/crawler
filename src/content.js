@@ -21,7 +21,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
             crawler.rastrear();
             sendResponse({status: "crawling_continuado"});
             break;
-        case "inicarGravacao":
+        case "iniciarGravacao":
             if(!tracer){
                 tracer = new WebTracer();
             }
