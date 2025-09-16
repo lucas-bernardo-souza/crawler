@@ -1,10 +1,5 @@
 let gravando = false;
 let xmlTracer = '';
-let xmlFinalTracer = '';
-let xmlInteracoes = '';
-let numInteracoes = 1;
-let tempoInteracao = 0;
-let executando = false;
 
 // Elementos da interface
 const initTracerBtn = document.getElementById('initTracer');
@@ -14,46 +9,59 @@ const initCrawlerBtn = document.getElementById('initCrawler');
 const resetCrawlerBtn = document.getElementById('resetCrawler');
 
 // === INICIALIZAÇÃO ===
-document.addEventListener('DOMContentLoaded', function() {
-    initializeTracer();
+document.addEventListener('DOMContentLoaded', async () => {
+    await updateButtonState();
+    await initializeTracerUI();
     setupEventListeners();
-    updateButtonState();
 });
 
-async function initializeTracer() {
+async function initializeTracerUI() {
     try {
-        // Carregar estado do storage
-        const result = await chrome.storage.local.get([
-            'gravando', 'xmlTracer', 'xmlFinalTracer', 
-            'xmlInteracoes', 'numInteracoes', 'tempoInteracao'
-        ]);
-
-        if (result.gravando !== undefined) {
-            gravando = result.gravando;
-            xmlTracer = result.xmlTracer || '';
-            xmlFinalTracer = result.xmlFinalTracer || '';
-            xmlInteracoes = result.xmlInteracoes || '';
-            numInteracoes = result.numInteracoes || 1;
-            tempoInteracao = result.tempoInteracao || 0;
-
-            updateUI();
-        }
+        const result = await chrome.storage.local.get(['isRecording', 'tracerState']);
+        gravando = result.isRecording || false;
+        xmlTracer = result.tracerState ? result.tracerState.xmlTracer : '';
+        updateUI();
     } catch (error) {
-        console.error('Erro ao inicializar tracer:', error);
+        console.error('Erro ao inicializar UI do tracer:', error);
+    }
+}
+
+async function updateButtonState(){
+    try{
+        const {isCrawling} = await chrome.storage.local.get('isCrawling');
+        if(isCrawling){
+            initCrawlerBtn.textContent = 'Rastreando...';
+            initCrawlerBtn.disable = true;
+            // Desativa o tracer se o crawler estiver ativo
+            initTracerBtn.disable = true;
+        } else {
+            initCrawlerBtn.textContent = 'Iniciar Crawler';
+            initCrawlerBtn.disable = false;
+            initTracerBtn.disable = false;
+        }
+    } catch(error){
+        console.error('Erro ao atualizar estado do botão:', error);
     }
 }
 
 // === EVENT LISTENERS ===
 function setupEventListeners() {
-    // Botão iniciar/parar tracer
+    // Botão iniciar/parar
     initCrawlerBtn.addEventListener('click', startCrawler);
     resetCrawlerBtn.addEventListener('click', resetCrawler);
-    
     // Tracer listeners
     initTracerBtn.addEventListener('click', handleTracerToggle);
     // Input de arquivo XML
     loadXMLInput.addEventListener('change', handleFileSelect);
 }
+
+// Ouvinte para mensagens vindas do background
+chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+    if(request.action === 'updatePopupUI'){
+        updateButtonState();
+        initializeTracerUI();
+    }
+});
 
 // === CRAWLER FUNCTIONS ===
 async function startCrawler(){
@@ -63,8 +71,9 @@ async function startCrawler(){
             action: "startCrawler",
             tabId: tab.id
         });
-        initCrawlerBtn.textContent = 'Rastreando...';
-        initCrawlerBtn.disabled = true;
+        //initCrawlerBtn.textContent = 'Rastreando...';
+        //initCrawlerBtn.disabled = true;
+        //window.close(); // Fecha o popup
     }
 }
 
@@ -74,212 +83,93 @@ async function resetCrawler() {
         await chrome.runtime.sendMessage({action: "resetCrawler"});
 
         // Atualiza a UI
-        initCrawlerBtn.textContent = 'Iniciar Crawler';
-        initCrawlerBtn.disabled = false;
+        //initCrawlerBtn.textContent = 'Iniciar Crawler';
+        //initCrawlerBtn.disabled = false;
         console.log('Crawler resetado com sucesso');
+        showMessage('Crawler parado e estado reiniciado.', 'info');
+        updateButtonState();
     } catch (error){
         console.error('Erro ao resetar crawler: ', error);
-    }
-}
-
-// Essa função atualiza o estado do botão com base no armazenamento
-async function updateButtonState() {
-    try {
-        const result = await chrome.storage.local.get('isCrawling');
-        const isCrawling = result.isCrawling;
-        if (isCrawling) {
-            initCrawlerBtn.textContent = 'Rastreando...';
-            initCrawlerBtn.disabled = true;
-        } else {
-            initCrawlerBtn.textContent = 'Iniciar Crawler';
-            initCrawlerBtn.disabled = false;
-        }
-    } catch (error) {
-        console.error('Erro ao acessar storage:', error);
+        showMessage('Erro ao parar o crawler.', 'error');
     }
 }
 
 // === FUNÇÕES DO TRACER ===
 async function handleTracerToggle() {
-    if (!gravando) {
-        // Iniciar tracer
-        gravando = true;
-        resetTracerState();
-        frameXML.style.display = 'block';
-        initTracerBtn.textContent = 'Parar Rastreio';
-        await saveTracerState();
-        updateBrowserActionIcon('icon-play.png');
-        
-    } else {
-        // Parar tracer
-        frameXML.style.display = 'none';
-        initTracerBtn.textContent = 'Iniciar Rastreio';
+    const {isRecording} = await chrome.storage.local.get('isRecording');
+
+    if(!isRecording){
+        // Se não estiver gravando mostra a caixa de upload
         gravando = false;
-        
-        if (xmlFinalTracer) {
-            // Salvar XML final se houver dados
-            await sendSaveXMLMessage();
-        } else {
-            // Apenas resetar estado
-            resetTracerState();
-            await saveTracerState();
-        }
-        
-        updateBrowserActionIcon('icon.png');
+        frameXML.style.display = 'block';
+        initTracerBtn.textContent = 'Iniciar Rastreio';
+    } else {
+        // Se está gravando, envia mensagem para parar e salvar
+        showMessage('Processando e guardando arquivos...', 'info');
+        await chrome.runtime.sendMessage({action: "stopTracerAndSave"});
+        //window.close();
     }
 }
 
 function handleFileSelect(event) {
     const file = event.target.files[0];
-    if (!file) return;
+    if(!file) return;
 
-    const extension = file.name.split('.').pop().toLowerCase();
-    if (extension !== 'xml') {
+    if(file.name.split('.').pop().toLowerCase() !== 'xml'){
         showMessage('Formato inválido! Importe um arquivo XML.', 'error');
-        resetFileInput();
         return;
     }
 
     const reader = new FileReader();
-    reader.onload = async function(e) {
-        try {
-            const xmlContent = e.target.result;
-            await validateAndStartTracer(xmlContent, file.name);
-        } catch (error) {
-            console.error('Erro ao processar arquivo:', error);
-            showMessage('Erro ao processar arquivo XML.', 'error');
-            resetFileInput();
-        }
-    };
-
-    reader.onerror = function() {
-        showMessage('Erro ao ler arquivo.', 'error');
-        resetFileInput();
-    };
-
+    reader.onLoad = (e) => validateAndStartTracer(e.target.result);
+    reader.onerror = () => showMessage('Erro ao ler arquivo.', 'error');
     reader.readAsText(file);
 }
 
-async function validateAndStartTracer(xmlContent, fileName) {
+async function validateAndStartTracer(xmlContent) {
+    const parser = new DOMParser();
+    const xmlDoc = parser.parseFromString(xmlContent, 'text/xml');
+    if(xmlDoc.getElementsByTagName('parsererror').length > 0){
+        return showMessage('XML inválido ou malformado.', 'error');
+    }
+    const siteElement = xmlDoc.querySelector('site');
+    if(!siteElement || siteElement.getAttribute('tipo') !== 'crawler'){
+        return showMessage('Importe um XML gerado pelo Crawler!', 'error');
+    }
+
     try {
-        // Verificar se é um XML válido do crawler
-        const parser = new DOMParser();
-        const xmlDoc = parser.parseFromString(xmlContent, 'text/xml');
-        
-        // Verificar erros de parsing
-        if (xmlDoc.getElementsByTagName('parsererror').length > 0) {
-            showMessage('XML inválido ou malformado.', 'error');
-            resetFileInput();
-            return;
-        }
+        const [tab] = await chrome.tabs.query({active: true, currentWindow: true});
 
-        const siteElement = xmlDoc.querySelector('site');
-        if (!siteElement || siteElement.getAttribute('tipo') !== 'crawler') {
-            showMessage('Importe um XML gerado pelo Crawler!', 'error');
-            resetFileInput();
-            return;
-        }
+        // Envia o XML para o background, que vai gerir o início da gravação
+        await chrome.runtime.sendMessage({
+            action: "startTracer",
+            tabId: tab.id,
+            xmlTracer: xmlContent
+        });
 
-        // Verificar se o XML é para o site atual
-        const currentTab = await getCurrentTab();
-        const currentUrl = new URL(currentTab.url);
-        const xmlUrl = new URL(siteElement.getAttribute('url'));
-        
-        if (currentUrl.hostname !== xmlUrl.hostname) {
-            showMessage('Importe um XML do Crawler gerado para este site!', 'error');
-            resetFileInput();
-            return;
-        }
+        showMessage('Tracer iniciado!', 'success');
+        setTimeout(() => window.close(), 1000);
+    } catch (error){
+        console.error('Erro ao enviar mensagem para iniciar tracer:', error);
+        showMessage('Não foi possível iniciar o tracer.', 'error');
+    }
+}
 
-        // Tudo validado, iniciar tracer
-        xmlTracer = xmlContent;
+function updateUI(){
+    const {isCrawling} = chrome.storage.local.get('isCrawling');
+    // Desativa botões se o crawler estiver rodando
+    if(isCrawling){
+        initTracerBtn.disable = true;
+        initCrawlerBtn.disable = true;
+    } else {
+        initTracerBtn.disable = false;
+        initCrawlerBtn.disable = false;
+    }
+
+    if(gravando){
         frameXML.style.display = 'none';
-        initTracerBtn.textContent = 'Parar Rastreio';
-        gravando = true;
-        
-        await saveTracerState();
+        initTracerBtn.textContent = 'Parar e Salvar Rastreio';
         updateBrowserActionIcon('icon-play.png');
-        
-        // Enviar mensagem para background script iniciar tracer
-        const tab = await getCurrentTab();
-        await chrome.runtime.sendMessage(tab.id, {
-            action: "iniciarGravacao",
-            gravando: gravando,
-            xmlTracer: xmlTracer
-        });
-        
-        showMessage('Tracer iniciado com sucesso!', 'success');
-        
-    } catch (error) {
-        console.error('Erro na validação do XML:', error);
-        showMessage('Erro ao validar arquivo XML.', 'error');
-        resetFileInput();
-    }
-}
-
-async function sendSaveXMLMessage() {
-    try {
-        const tab = await getCurrentTab();
-        await chrome.runtime.sendMessage(tab.id, {
-            action: "salvarXMLTracer",
-            xmlFinalTracer: xmlFinalTracer,
-            xmlInteracoes: xmlInteracoes,
-            gravando: false, // Para parar a gravação
-            xmlTracer: xmlTracer,
-            numInteracoes: numInteracoes,
-            tempoInteracao: tempoInteracao
-        });
-        
-        // Resetar estado local
-        gravando = false;
-        resetTracerState();
-        await saveTracerState();
-        
-    } catch (error) {
-        console.error('Erro ao enviar mensagem de salvamento:', error);
-    }
-}
-
-async function saveTracerState() {
-    try {
-        await chrome.storage.local.set({
-            gravando: gravando,
-            xmlTracer: xmlTracer,
-            xmlFinalTracer: xmlFinalTracer,
-            xmlInteracoes: xmlInteracoes,
-            numInteracoes: numInteracoes,
-            tempoInteracao: tempoInteracao
-        });
-    } catch (error) {
-        console.error('Erro ao salvar estado:', error);
-    }
-}
-
-function resetTracerState() {
-    if (!gravando) {
-        xmlTracer = '';
-        xmlFinalTracer = '';
-        xmlInteracoes = '';
-        numInteracoes = 1;
-        tempoInteracao = 0;
-    }
-}
-
-function resetFileInput() {
-    loadXMLInput.value = '';
-}
-
-function updateUI() {
-    if (gravando) {
-        if (xmlTracer) {
-            frameXML.style.display = 'none';
-            initTracerBtn.textContent = 'Parar Rastreio';
-            updateBrowserActionIcon('icon-play.png');
-        } else {
-            frameXML.style.display = 'block';
-            initTracerBtn.textContent = 'Iniciar Rastreio';
-            updateBrowserActionIcon('icon.png');
-        }
     } else {
         frameXML.style.display = 'none';
         initTracerBtn.textContent = 'Iniciar Rastreio';
@@ -332,30 +222,3 @@ function showMessage(message, type = 'info') {
         }
     }, 3000);
 }
-
-async function getCurrentTab() {
-    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-    return tab;
-}
-
-// === MESSAGE LISTENER ===
-// (ENVIADA AO BACKGROUND)
-chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-    if (request.action === "updateTracerState") {
-        gravando = request.gravando;
-        xmlTracer = request.xmlTracer;
-        updateUI();
-        sendResponse({ status: "success" });
-    }
-    
-    if (request.action === "tracerError") {
-        showMessage(request.message, 'error');
-        sendResponse({ status: "received" });
-    }
-
-    if(request.action === 'crawlerFinished'){
-        updateButtonState();
-    }
-    
-    return true;
-});

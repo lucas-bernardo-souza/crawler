@@ -63,7 +63,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 });
 
 // Navegação e persistência
-chrome.tabs.onUpdate.addListener(async(tabId, changeInfo, tab) => {
+chrome.tabs.onUpdated.addListener(async(tabId, changeInfo, tab) => {
     // Garante que a lógica só executa quando a página está completamente carregada
     if (changeInfo.status === 'complete' && tab.url && !tab.url.startsWith('chrome://')) {
         const { isCrawling, crawlerState, isRecording, tracerState } = await chrome.storage.local.get(['isCrawling', 'crawlerState', 'isRecording', 'tracerState']);
@@ -139,6 +139,15 @@ async function sendMessageToTab(tabId, message, retries = 3){
                 await new Promise(resolve => setTimeout(resolve, 1000));
             }
         }
+    }
+}
+
+async function initializeState() {
+    const result = await chrome.storage.local.get(['isCrawling', 'crawlerState', 'isRecording', 'tracerState']);
+    
+    // Se o crawler estava rodando, atualiza a UI do popup
+    if (result.isCrawling) {
+        chrome.runtime.sendMessage({action: 'updatePopupUI'});
     }
 }
 
