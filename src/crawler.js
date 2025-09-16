@@ -1,4 +1,4 @@
-class WebCrawler {
+export default class WebCrawler {
     constructor() {
         this.linksPorPai = [];
         this.linksAcessados = [];

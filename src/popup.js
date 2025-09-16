@@ -28,8 +28,9 @@ async function initializeTracerUI() {
 
 async function updateButtonState(){
     try{
-        const {isCrawling} = await chrome.storage.local.get('isCrawling');
-        if(isCrawling){
+        const result = await chrome.storage.local.get(['isCrawling', 'isRecording']);
+
+        if(result.isCrawling){
             initCrawlerBtn.textContent = 'Rastreando...';
             initCrawlerBtn.disable = true;
             // Desativa o tracer se o crawler estiver ativo
@@ -37,8 +38,11 @@ async function updateButtonState(){
         } else {
             initCrawlerBtn.textContent = 'Iniciar Crawler';
             initCrawlerBtn.disable = false;
-            initTracerBtn.disable = false;
+            // Só desativa quando não estiver gravando
+            initTracerBtn.disabled = !result.isRecording;
         }
+        // Atualiza o estado do botão reset
+        resetCrawlerBtn.disabled = !result.isCrawling && !result.isRecording;
     } catch(error){
         console.error('Erro ao atualizar estado do botão:', error);
     }
@@ -65,15 +69,25 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 
 // === CRAWLER FUNCTIONS ===
 async function startCrawler(){
-    const[tab] = await chrome.tabs.query({active: true, currentWindow: true});
-    if(tab){
-        chrome.runtime.sendMessage({
-            action: "startCrawler",
-            tabId: tab.id
-        });
-        //initCrawlerBtn.textContent = 'Rastreando...';
-        //initCrawlerBtn.disabled = true;
-        //window.close(); // Fecha o popup
+    try {
+        const[tab] = await chrome.tabs.query({active: true, currentWindow: true});
+        if(tab){
+            await chrome.runtime.sendMessage({
+                action: "startCrawler",
+                tabId: tab.id
+            });
+            
+            // Atualiza a UI imediatamente
+            initCrawlerBtn.textContent = 'Rastreando...';
+            initCrawlerBtn.disabled = true;
+            initTracerBtn.disabled = true;
+            
+            showMessage('Crawler iniciado!', 'success');
+            setTimeout(() => window.close(), 1000);
+        }
+    } catch (error) {
+        console.error('Erro ao iniciar crawler:', error);
+        showMessage('Erro ao iniciar crawler', 'error');
     }
 }
 
@@ -148,25 +162,25 @@ async function validateAndStartTracer(xmlContent) {
         });
 
         showMessage('Tracer iniciado!', 'success');
-        setTimeout(() => window.close(), 1000);
+        //setTimeout(() => window.close(), 1000);
     } catch (error){
         console.error('Erro ao enviar mensagem para iniciar tracer:', error);
         showMessage('Não foi possível iniciar o tracer.', 'error');
     }
 }
 
-function updateUI(){
-    const {isCrawling} = chrome.storage.local.get('isCrawling');
+async function updateUI(){
+    const result = await chrome.storage.local.get(['isCrawling', 'isRecording']);
     // Desativa botões se o crawler estiver rodando
-    if(isCrawling){
+    if(result.isCrawling){
         initTracerBtn.disable = true;
         initCrawlerBtn.disable = true;
     } else {
-        initTracerBtn.disable = false;
+        initTracerBtn.disable = result.isRecording;
         initCrawlerBtn.disable = false;
     }
 
-    if(gravando){
+    if(result.isRecording){
         frameXML.style.display = 'none';
         initTracerBtn.textContent = 'Parar e Salvar Rastreio';
         updateBrowserActionIcon('icon-play.png');

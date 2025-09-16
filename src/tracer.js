@@ -1,4 +1,4 @@
-class WebTracer {
+export default class WebTracer {
     constructor() {
         this.gravando = false;
         this.xmlTracer = '';

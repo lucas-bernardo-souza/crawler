@@ -1,3 +1,6 @@
+import WebCrawler from './crawler';
+import WebTracer from './tracer';
+
 let crawler = null;
 let tracer = null;
 
@@ -5,6 +8,10 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     console.log("Content Script recebeu a ação: ", request.action);
 
     switch(request.action){
+        case "ping":
+            // Resposta para verificar se o content script está pronto
+            sendResponse({status: "ready"});
+            return true;
         case "startCrawling":
             if(!crawler){
                 crawler = new WebCrawler();
@@ -41,27 +48,34 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
                 sendResponse({status: "xml_salvo"});
             }
             break;
+        default:
+            console.warn("Acao não reconhecida: ", request.action);
+            return false;
     }
     // retorna false para todas as outras mensagens síncronas.
     return false;
 })
 
 (async () => {
-    try{
+    try {
+        // Aguarda um pouco antes de enviar a mensagem
+        await new Promise(resolve => setTimeout(resolve, 300));
+        
         const response = await chrome.runtime.sendMessage({action: "contentScriptLoaded"});
 
         if(response && response.shouldCrawl){
             console.log("Continuando um crawling existente...");
             crawler = new WebCrawler();
             crawler.initializeState(response.crawlerState);
-            // Adiciona um delay ao crawler para garantir que a paǵina esteja pronta
-            setTimeout(()=> crawler.rastrear(), 1000);
+            setTimeout(() => crawler.rastrear(), 1000);
         } else if (response && response.shouldRecord) {
-            console.log("Continunado uma gravação existente...");
+            console.log("Continuando uma gravação existente...");
             tracer = new WebTracer();
+            tracer.initializeState(response.tracerState);
         }
-    } catch(error){
-        if(!error.message.includes("Could not establish connection")){
+    } catch(error) {
+        // Ignora erros de conexão específicos
+        if (!error.message.includes("Could not establish connection")) {
             console.error("Content Script: Erro na inicialização:", error);
         }
     }

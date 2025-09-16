@@ -66,24 +66,45 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 chrome.tabs.onUpdated.addListener(async(tabId, changeInfo, tab) => {
     // Garante que a lógica só executa quando a página está completamente carregada
     if (changeInfo.status === 'complete' && tab.url && !tab.url.startsWith('chrome://')) {
+        // Aguarda um pouco para garantir que o content script está pronto
+        await new Promise(resolve => setTimeout(resolve, 300));
         const { isCrawling, crawlerState, isRecording, tracerState } = await chrome.storage.local.get(['isCrawling', 'crawlerState', 'isRecording', 'tracerState']);
 
         // Se estiver fanzendo CRAWLING, envia a mensagem para continuar
         if (isCrawling && crawlerState) {
-            sendMessageToTab(tabId, {
+            await sendMessageToTab(tabId, {
                 action: "continueCrawling",
                 crawlerState: crawlerState
             });
         }
         // Se estiver GRAVANDO, envia a mensagem para continuar
         else if (isRecording && tracerState) {
-             sendMessageToTab(tabId, {
+            await sendMessageToTab(tabId, {
                 action: "continueRecording",
                 tracerState: tracerState
             });
         }
     }
 });
+
+// Função auxiliar para esperar o content script ficar pronto
+async function waitForContentScriptReady(tabId, timeout = 10000) {
+    const startTime = Date.now();
+    
+    while (Date.now() - startTime < timeout) {
+        try {
+            const response = await chrome.tabs.sendMessage(tabId, {action: "ping"});
+            if (response && response.status === "ready") {
+                return true;
+            }
+        } catch (e) {
+            // Ignora erros e continua tentando
+            await new Promise(resolve => setTimeout(resolve, 200));
+        }
+    }
+    
+    return false;
+}
 
 // Funções de inicialização
 async function startCrawling(tabId) {
@@ -124,20 +145,51 @@ async function startRecording(tabId, xmlTracer){
 
     await chrome.storage.local.set({isRecording: true, tracerState: initialState});
 
-    chrome.tabs.reload(tabId);
+    // Recarrega a aba
+    await chrome.tabs.reload(tabId);
+    
+    // Aguarda o content script estar pronto após o recarregamento
+    const isReady = await waitForContentScriptReady(tabId, 10000);
+    
+    if (isReady) {
+        // Agora envia a mensagem para iniciar a gravação
+        await sendMessageToTab(tabId, {
+            action: "iniciarGravacao",
+            gravando: true,
+            xmlTracer: xmlTracer,
+            tabid: tabId
+        });
+    } else {
+        console.error("Content script não ficou pronto após recarregamento");
+    }
 }
 
-async function sendMessageToTab(tabId, message, retries = 3){
+async function sendMessageToTab(tabId, message, retries = 5, delay = 500){
     for(let i = 0; i < retries; i++){
         try{
+            const tab = await chrome.tabs.get(tabId);
+            
+            // Verificar se a URL é compatível com content scripts
+            if (tab.url && (tab.url.startsWith('chrome://') || tab.url.startsWith('about:') || tab.url.startsWith('edge://'))) {
+                console.warn('URL não suportada para content scripts:', tab.url);
+                return false;
+            }
+
+            // Verificar se a página está completamente carregada
+            if (tab.status !== 'complete') {
+                throw new Error('Página ainda não carregou completamente');
+            }
+            
             await chrome.tabs.sendMessage(tabId, message);
-            return;
+            return true;
+
         } catch(e){
             if(i === retries -1){
                 console.error(`Não foi possível enviar a mensagem para a aba ${tabId} após ${retries} tentativas. Erro:`, e);
-            } else {
-                await new Promise(resolve => setTimeout(resolve, 1000));
+                return false;
             }
+            // Backoff exponencial
+            await new Promise(resolve => setTimeout(resolve, delay * Math.pow(2, i)));
         }
     }
 }
