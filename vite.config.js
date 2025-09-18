@@ -1,12 +1,15 @@
 import { resolve } from 'path';
 import { defineConfig } from 'vite';
+import copy from 'rollup-plugin-copy';
 
 export default defineConfig({
   build: {
     minify: false,
+    outDir: 'dist',
+    emptyOutDir: true,
     rollupOptions: {
       input: {
-        popup: resolve(__dirname, 'popup.html'), // Aponta para o popup.html na raiz
+        popup: resolve(__dirname, 'src/popup.js'), // Aponta para o popup.html na raiz
         background: resolve(__dirname, 'src/background.js'),
         content: resolve(__dirname, 'src/content.js'),
         crawler: resolve(__dirname, 'src/crawler.js'),
@@ -18,9 +21,19 @@ export default defineConfig({
         chunkFileNames: 'chunks/[name].js',
         assetFileNames: 'assets/[name].[ext]',
       },
+      plugins: [
+        // Copia arquivos estáticos para a pasta dist
+        copy({
+          targets: [
+            { src: 'libs/filesaver.js', dest: 'dist/libs' },
+            { src: 'manifest.json', dest: 'dist' },
+            { src: 'icons/*', dest: 'dist/icons' },
+            { src: 'popup.html', dest: 'dist' }
+          ],
+          hook: 'writeBundle'
+        }),
+      ],
     },
-    outDir: 'dist',
-    emptyOutDir: true,
   },
   publicDir: 'public',
 });

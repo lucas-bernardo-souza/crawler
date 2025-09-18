@@ -72,18 +72,18 @@ async function startCrawler(){
     try {
         const[tab] = await chrome.tabs.query({active: true, currentWindow: true});
         if(tab){
-            await chrome.runtime.sendMessage({
+            let response = await chrome.runtime.sendMessage({
                 action: "startCrawler",
                 tabId: tab.id
             });
-            
+            console.log(response);
             // Atualiza a UI imediatamente
             initCrawlerBtn.textContent = 'Rastreando...';
             initCrawlerBtn.disabled = true;
             initTracerBtn.disabled = true;
             
             showMessage('Crawler iniciado!', 'success');
-            setTimeout(() => window.close(), 1000);
+            //setTimeout(() => window.close(), 1000);
         }
     } catch (error) {
         console.error('Erro ao iniciar crawler:', error);

@@ -1,4 +1,4 @@
-export default class WebTracer {
+class WebTracer {
     constructor() {
         this.gravando = false;
         this.xmlTracer = '';
@@ -758,3 +758,6 @@ export default class WebTracer {
         this.salvarEstado();
     }
 }
+
+// Torna o escopo da classe global
+window.WebTracer = WebTracer;

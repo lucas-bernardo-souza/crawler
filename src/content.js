@@ -1,6 +1,3 @@
-import WebCrawler from './crawler';
-import WebTracer from './tracer';
-
 let crawler = null;
 let tracer = null;
 
@@ -54,7 +51,9 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     }
     // retorna false para todas as outras mensagens síncronas.
     return false;
-})
+});
+
+// O que faz essa async?
 
 (async () => {
     try {
@@ -74,7 +73,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
             tracer.initializeState(response.tracerState);
         }
     } catch(error) {
-        // Ignora erros de conexão específicos
+         // Ignora erros de conexão específicos
         if (!error.message.includes("Could not establish connection")) {
             console.error("Content Script: Erro na inicialização:", error);
         }

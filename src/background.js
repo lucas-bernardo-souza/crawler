@@ -1,9 +1,16 @@
 // Gerenciador de estado e comunicação
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+    // Carregando o content na página
+    chrome.scripting.executeScript({
+        target: {tabId: request.tabId},
+        files: ['crawler.js', 'tracer.js','content.js']
+    });
+
     switch(request.action){
         // Ação do popup: Inicia o processo de crawling
         // função síncrona
         case "startCrawler":
+            console.log('Recebeu a mensagem startCrawler');
             startCrawling(request.tabId);
             sendResponse({status: "iniciando_crawler"});
             break;
@@ -109,6 +116,7 @@ async function waitForContentScriptReady(tabId, timeout = 10000) {
 // Funções de inicialização
 async function startCrawling(tabId) {
     // Limpa estados anteriores
+    console.log('Iniciou a função startCrawling - Background.js');
     await chrome.storage.local.clear();
 
     const initialState = {
@@ -122,12 +130,19 @@ async function startCrawling(tabId) {
         index: "true",
         numEdge: 1
     };
+
+
     await chrome.storage.local.set({isCrawling: true, crawlerState: initialState});
 
-    sendMessageToTab(tabId, {
-        action: "startCrawling",
-        crawlerState: initialState
-    });
+    const tab = await chrome.tabs.get(tabId);
+    if(tab){
+        console.log('Aba existe e acessível, mandando mensagem');
+        await chrome.tabs.sendMessage(tabId, {
+            action: "startCrawling",
+            crawlerState: initialState
+        });
+    }
+    
 }
 
 async function startRecording(tabId, xmlTracer){
@@ -164,13 +179,31 @@ async function startRecording(tabId, xmlTracer){
     }
 }
 
+async function isContentScriptInjected(tabId) {
+    try {
+        // Tenta enviar um ping para verificar se o content script está lá
+        await chrome.tabs.sendMessage(tabId, {action: "ping"});
+        return true;
+    } catch (e) {
+        return false;
+    }
+}
+
 async function sendMessageToTab(tabId, message, retries = 5, delay = 500){
+    console.log(`Tentando enviar mensagem para aba ${tabId}:`, message.action);
     for(let i = 0; i < retries; i++){
         try{
             const tab = await chrome.tabs.get(tabId);
-            
-            // Verificar se a URL é compatível com content scripts
-            if (tab.url && (tab.url.startsWith('chrome://') || tab.url.startsWith('about:') || tab.url.startsWith('edge://'))) {
+            console.log(`Aba ${tabId} status:`, tab.status, 'URL:', tab.url);
+
+            if(!tab){
+                throw new Error(`Aba ${tabId} não exisite`);
+            }
+
+
+            const restrictedPatterns = ['chrome://', 'about:', 'edge://', 'opera://', 'vivaldi://', 'brave://'];
+            const isRestricted = restrictedPatterns.some(pattern => tab.url && tab.url.startsWith(pattern));
+            if (isRestricted) {
                 console.warn('URL não suportada para content scripts:', tab.url);
                 return false;
             }
@@ -178,6 +211,11 @@ async function sendMessageToTab(tabId, message, retries = 5, delay = 500){
             // Verificar se a página está completamente carregada
             if (tab.status !== 'complete') {
                 throw new Error('Página ainda não carregou completamente');
+            }
+
+            // Verifica se o content script está injetado
+            if (!await isContentScriptInjected(tabId)) {
+                throw new Error('Content script não está injetado nesta aba');
             }
             
             await chrome.tabs.sendMessage(tabId, message);
@@ -211,5 +249,5 @@ async function resetState() {
 
 // Envia a ordem para o content script salvar o ficheiro.
 async function stopAndSaveRecording(tabId) {
-    sendMessageToTab(tabId, { action: "salvarXMLTracer" });
+    await sendMessageToTab(tabId, { action: "salvarXMLTracer" });
 }

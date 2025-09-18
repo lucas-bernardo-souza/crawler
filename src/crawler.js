@@ -1,4 +1,4 @@
-export default class WebCrawler {
+class WebCrawler {
     constructor() {
         this.linksPorPai = [];
         this.linksAcessados = [];
@@ -478,3 +478,6 @@ export default class WebCrawler {
 
     }
 }
+
+// Torna o escopo da classe global
+window.WebCrawler = WebCrawler;
