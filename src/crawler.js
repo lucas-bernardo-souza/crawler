@@ -14,6 +14,7 @@ class WebCrawler {
         this.keepAliveInterval = null;
         this.timeoutId = null;
         this.numEdge = 1;
+        this.isPaginaFechada = false;
 
         // Timeout de segurança para evitar travamentos
         this.timeoutId = setTimeout(() => {
@@ -112,19 +113,52 @@ class WebCrawler {
             this.mapeiaProximoComponente();
         } catch (error) {
             console.error("Erro em processaDom:", error);
+            this.fecharPaginaAtual();
             this.finalizaCrawler();
         }
     }
 
     mapeiaProximoComponente() {
-        if (this.itemAtual < this.DOM.length) {
+        try{
+            // Verifica se ainda há componentes para processar
+            if(this.itemAtual >= this.DOM.length){
+                // Todos os componentes foram processadors - fechar p[agina normalmente
+                //this.xmlSite += '\t\t</page>\n\n';
+                this.fecharPaginaAtual();
+                this.acessaProximoLink();
+                return;
+            }
             this.mostrarStatus(`Rastreando Componente: ${this.itemAtual + 1} de ${this.DOM.length}`);
-            this.mapeiaComponente(this.itemAtual);
+            // Processa componente atual
+            try{
+                this.mapeiaComponente(this.itemAtual);
+            } catch (componentError) {
+                console.warn(`Erro no componente ${this.itemAtual}, continuando...:`, componentError);
+            }
             this.itemAtual++;
-            setTimeout(() => this.mapeiaProximoComponente(), 0);
-        } else {
-            this.xmlSite += '\t\t</page>\n\n';
-            this.acessaProximoLink();
+
+            // Agenda proximo processamento com controle de erro
+            if(this.itemAtual < this.DOM.length){
+                // Ainda há componentes - continua o processamento
+                setTimeout(() => {
+                    try{
+                        this.mapeiaProximoComponente();
+                    } catch (asyncError){
+                        console.error("Erro assíncrono, finalizando crawler:", asyncError);
+                        this.fecharPaginaAtual();
+                        this.finalizaCrawler();
+                    }
+                }, 0);
+            } else {
+                // Último componente processado - fechar a página
+                //this.xmlSite += '\t\t</page>\n\n';
+                this.fecharPaginaAtual();
+                this.acessaProximoLink();
+            }
+        } catch(criticalError){
+            console.error("Erro crítico, finalizando crawler:", criticalError);
+            this.fecharPaginaAtual();
+            this.finalizaCrawler();
         }
     }
 
@@ -324,6 +358,7 @@ class WebCrawler {
         console.log("Links por pai:", this.linksPorPai);
         console.log("Links acessados:", this.linksAcessados);
 
+        this.isPaginaFechada = false;
         let proximoLink = '';
         let linkInfoCompleto = null;
 
@@ -413,11 +448,22 @@ class WebCrawler {
         }
     }
 
-    finalizaCrawler() {
-        // Fechamento da página atual se ainda estiver aberta
-        if (this.xmlSite.includes('<page') && !this.xmlSite.includes('</page>')) {
+    fecharPaginaAtual(){
+        if(this.isPaginaFechada) return;
+        // Conta quantas tags <page> abertas vs fechadas
+        const pageOpenCount = (this.xmlSite.match(/<page/g) || []).length;
+        const pageCloseConunt = (this.xmlSite.match(/<\/page>/g) || []).length;
+
+        // Fecha todas as páginas abertas não fechadas
+        for(let i = pageCloseConunt; i < pageOpenCount; i++){
             this.xmlSite += '\t\t</page>\n\n';
         }
+        this.isPaginaFechada = true;
+    }
+
+    finalizaCrawler() {
+        // Fechamento da página atual se ainda estiver aberta
+        this.fecharPaginaAtual();
 
         // Limpar timeout de segurança
         if (this.timeoutId) {
