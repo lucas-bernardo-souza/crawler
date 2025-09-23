@@ -1,27 +1,27 @@
 // Gerenciador de estado e comunicação
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     // Carregando o content na página
-    chrome.scripting.executeScript({
-        target: {tabId: request.tabId},
-        files: ['crawler.js', 'tracer.js','content.js']
-    });
+    
 
     switch(request.action){
         // Ação do popup: Inicia o processo de crawling
         // função síncrona
         case "startCrawler":
             console.log('Recebeu a mensagem startCrawler');
+            injectScript(request.tabId);
             startCrawling(request.tabId);
             sendResponse({status: "iniciando_crawler"});
             break;
         // Ação do popup: Inicia o processo de gravação do tracer
         // função síncrona
         case "startTracer":
+            console.log("background: Recebeu a mensagem startTracer");
             startRecording(request.tabId, request.xmlTracer);
             sendResponse({status: "iniciando_tracer"});
             break;
         // Ação do crawler - Pede para navegar para um novo link
         case "abreLink":
+            console.log("Recebeu a mensagem abreLink");
             chrome.storage.local.set({crawlerState: request.crawlerState}, () => {
                 chrome.tabs.update(sender.tab.id, {url: request.url});
             });
@@ -30,13 +30,16 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
             stopAndSaveRecording(sender.tab.id);
             sendResponse({status: "solicitando_salvamento"});
             break;
+        // Ação do crawler - Ao finalizar o WebCrawler envia essa mensagem
         case "resetCrawler":
+            console.log("Recebeu a mensagem resetCrawler");
             resetState();
             chrome.runtime.sendMessage({action: 'updatePopupUI'});
             sendResponse({status: "crawler_resetado"});
             break;
         // Ação do content script: pergunta o que fazer ao ser carregado para uma nova página
         case "contentScriptLoaded":
+            console.log("Recebeu a mensagem contentScriptLoaded - O que fazer ao ser carregado para nova página");
             chrome.storage.local.get(['isCrawling', 'crawlerState', 'isRecording', 'tracerState'], (result) => {
                 if(result.isCrawling && result.crawlerState){
                     sendResponse({shouldCrawl: true, crawlerState: result.crawlerState});
@@ -49,6 +52,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
             // resposta assíncrona
             return true;
         case "abreLink":
+            console.log("Recebeu a mensagem abreLink");
             chrome.storage.local.set({crawlerState: request.crawlerState}, () => {
                 chrome.tabs.update(sender.tab.id, {url: request.url});
             });
@@ -79,10 +83,12 @@ chrome.tabs.onUpdated.addListener(async(tabId, changeInfo, tab) => {
 
         // Se estiver fanzendo CRAWLING, envia a mensagem para continuar
         if (isCrawling && crawlerState) {
-            await sendMessageToTab(tabId, {
-                action: "continueCrawling",
-                crawlerState: crawlerState
-            });
+            // await sendMessageToTab(tabId, {
+            //     action: "continueCrawling",
+            //     crawlerState: crawlerState
+            // });
+            console.log("Continua o crawling para próxima página.")
+            await chrome.tabs.sendMessage(tabId, {action: "continueCrawling", crawlerState: crawlerState});
         }
         // Se estiver GRAVANDO, envia a mensagem para continuar
         else if (isRecording && tracerState) {
@@ -90,9 +96,17 @@ chrome.tabs.onUpdated.addListener(async(tabId, changeInfo, tab) => {
                 action: "continueRecording",
                 tracerState: tracerState
             });
+
         }
     }
 });
+
+function injectScript(tabId){
+    chrome.scripting.executeScript({
+        target: {tabId: tabId},
+        files: ['crawler.js', 'tracer.js', 'content.js']
+    });
+}
 
 // Função auxiliar para esperar o content script ficar pronto
 async function waitForContentScriptReady(tabId, timeout = 10000) {
@@ -116,7 +130,7 @@ async function waitForContentScriptReady(tabId, timeout = 10000) {
 // Funções de inicialização
 async function startCrawling(tabId) {
     // Limpa estados anteriores
-    console.log('Iniciou a função startCrawling - Background.js');
+    
     await chrome.storage.local.clear();
 
     const initialState = {
@@ -159,6 +173,8 @@ async function startRecording(tabId, xmlTracer){
     };
 
     await chrome.storage.local.set({isRecording: true, tracerState: initialState});
+    // Atualiza a interface para liberar o botão de parar rastreio
+    chrome.runtime.sendMessage({action: 'updateUI'});
 
     // Recarrega a aba
     await chrome.tabs.reload(tabId);

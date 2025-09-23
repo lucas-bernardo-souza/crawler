@@ -10,29 +10,38 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
             sendResponse({status: "ready"});
             return true;
         case "startCrawling":
+            console.log("CONTENT. Recebeu mensagem: startCrawling");
             if(!crawler){
+                console.log("instancia um novo crawler");
                 crawler = new WebCrawler();
                 crawler.initializeState(request.crawlerState);
             }
             crawler.iniciar();
+            console.log("Envia resposta que o crawler foi iniciado");
+            console.log("crawling_iniciado");
             sendResponse({status:"crawling_iniciado"});
             break;
         case "continueCrawling":
+            console.log("CONTENT. Recebeu a mensagem: continueCrawling");
             if(!crawler){
+                console.log("WebCrawler não instanciado, Instancia um novo WebCrawler");
                 crawler = new WebCrawler();
             }
             crawler.initializeState(request.crawlerState);
+            console.log("Chama o método rastrear do crawler");
             crawler.rastrear();
             sendResponse({status: "crawling_continuado"});
             break;
         case "iniciarGravacao":
+            console.log("content: Recebeu a mensagem inicarGravacao");
             if(!tracer){
                 tracer = new WebTracer();
             }
             tracer.gravando = request.gravando;
             tracer.xmlTracer = request.xmlTracer;
-
+            
             tracer.salvarEstado(()=>{
+                console.log("Arrow function salvarEstado");
                 tracer.iniciaTracer(request.tabid);
                 sendResponse({status: "gravacao_iniciada"});
             });
@@ -64,6 +73,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 
         if(response && response.shouldCrawl){
             console.log("Continuando um crawling existente...");
+            console.log("Instanciando um novo WebCrawler");
             crawler = new WebCrawler();
             crawler.initializeState(response.crawlerState);
             setTimeout(() => crawler.rastrear(), 1000);

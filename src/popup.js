@@ -8,6 +8,18 @@ const loadXMLInput = document.getElementById('loadXML');
 const initCrawlerBtn = document.getElementById('initCrawler');
 const resetCrawlerBtn = document.getElementById('resetCrawler');
 
+// Comunicação com o background
+chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+    switch(request.action){
+        case "updatePopupUI":
+            updatePopupUI();
+            break;
+        case "updateUI":
+            updateUI();
+            break;
+    }
+});
+
 // === INICIALIZAÇÃO ===
 document.addEventListener('DOMContentLoaded', async () => {
     await updateButtonState();
@@ -38,8 +50,6 @@ async function updateButtonState(){
         } else {
             initCrawlerBtn.textContent = 'Iniciar Crawler';
             initCrawlerBtn.disable = false;
-            // Só desativa quando não estiver gravando
-            initTracerBtn.disabled = !result.isRecording;
         }
         // Atualiza o estado do botão reset
         resetCrawlerBtn.disabled = !result.isCrawling && !result.isRecording;
@@ -76,7 +86,6 @@ async function startCrawler(){
                 action: "startCrawler",
                 tabId: tab.id
             });
-            console.log(response);
             // Atualiza a UI imediatamente
             initCrawlerBtn.textContent = 'Rastreando...';
             initCrawlerBtn.disabled = true;
@@ -95,30 +104,31 @@ async function resetCrawler() {
     try{
         // Envia uma mensagem para parar o crawler
         await chrome.runtime.sendMessage({action: "resetCrawler"});
-
-        // Atualiza a UI
-        //initCrawlerBtn.textContent = 'Iniciar Crawler';
-        //initCrawlerBtn.disabled = false;
-        console.log('Crawler resetado com sucesso');
-        showMessage('Crawler parado e estado reiniciado.', 'info');
-        updateButtonState();
+        updatePopupUI();
+        
     } catch (error){
         console.error('Erro ao resetar crawler: ', error);
         showMessage('Erro ao parar o crawler.', 'error');
     }
 }
 
+function updatePopupUI(){
+    console.log('Crawler resetado com sucesso');
+    showMessage('Crawler parado e estado reiniciado.', 'info');
+    updateButtonState();
+}
+
 // === FUNÇÕES DO TRACER ===
 async function handleTracerToggle() {
     const {isRecording} = await chrome.storage.local.get('isRecording');
-
+    console.log("handleTracerToggle: ", isRecording);
     if(!isRecording){
         // Se não estiver gravando mostra a caixa de upload
         gravando = false;
         frameXML.style.display = 'block';
         initTracerBtn.textContent = 'Iniciar Rastreio';
     } else {
-        // Se está gravando, envia mensagem para parar e salvar
+        // Se está monitorando interações, envia mensagem para parar e salvar
         showMessage('Processando e guardando arquivos...', 'info');
         await chrome.runtime.sendMessage({action: "stopTracerAndSave"});
         //window.close();
@@ -126,8 +136,10 @@ async function handleTracerToggle() {
 }
 
 function handleFileSelect(event) {
+    console.log("handleFileSelect");
     const file = event.target.files[0];
     if(!file) return;
+
 
     if(file.name.split('.').pop().toLowerCase() !== 'xml'){
         showMessage('Formato inválido! Importe um arquivo XML.', 'error');
@@ -135,12 +147,15 @@ function handleFileSelect(event) {
     }
 
     const reader = new FileReader();
-    reader.onLoad = (e) => validateAndStartTracer(e.target.result);
+    console.log("Chamando validateAndStartTracer");
+    reader.onload = (e) => validateAndStartTracer(e.target.result);
     reader.onerror = () => showMessage('Erro ao ler arquivo.', 'error');
     reader.readAsText(file);
 }
 
 async function validateAndStartTracer(xmlContent) {
+    console.log("Entrou em validadeAndStartTracer");
+    //console.log("Recebeu como parâmetro: ", xmlContent);
     const parser = new DOMParser();
     const xmlDoc = parser.parseFromString(xmlContent, 'text/xml');
     if(xmlDoc.getElementsByTagName('parsererror').length > 0){
@@ -153,6 +168,8 @@ async function validateAndStartTracer(xmlContent) {
 
     try {
         const [tab] = await chrome.tabs.query({active: true, currentWindow: true});
+        console.log(tab);
+        console.log("Enviando mensagem: startTracer");
 
         // Envia o XML para o background, que vai gerir o início da gravação
         await chrome.runtime.sendMessage({

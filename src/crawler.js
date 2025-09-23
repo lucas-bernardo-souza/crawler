@@ -319,7 +319,7 @@ class WebCrawler {
         );
     }
 
-    acessaProximoLink() {
+    async acessaProximoLink() {
         console.log("Buscando próximo link...");
         console.log("Links por pai:", this.linksPorPai);
         console.log("Links acessados:", this.linksAcessados);
@@ -327,9 +327,12 @@ class WebCrawler {
         let proximoLink = '';
         let linkInfoCompleto = null;
 
+        // Acessa os links das páginas mapeadas
         for (const page of this.linksPorPai) {
+            // Verifica se há links naquela página
             if (page.links) {
                 for (const linkInfo of page.links) {
+                    // Verifica se o link não foi acessado ainda
                     if (!this.verificaLinkAcessado(linkInfo.link)) {
                         proximoLink = linkInfo.link;
                         linkInfoCompleto = linkInfo;
@@ -348,13 +351,14 @@ class WebCrawler {
             this.mostrarStatus(`Acessando Link: ${proximoLink}`);
 
             // Salvar estado atual antes de navegar
-            chrome.storage.local.set({
+            await chrome.storage.local.set({
                 crawlerState: this.getCurrentState(),
                 isCrawling: true
             }, () => {
-                console.log("Estado salvo, navegando...");
+                console.log("WebCrawler. Método: acessaProximoLink");
+                console.log("Enviando mensagem ao background: abreLink");
                 chrome.runtime.sendMessage({
-                    action: "abrelink",
+                    action: "abreLink",
                     url: proximoLink,
                     crawlerState: this.getCurrentState()
                 });
@@ -471,7 +475,9 @@ class WebCrawler {
             setTimeout(() => URL.revokeObjectURL(url), 100);
 
             // Notificar o background que o crawler terminou
-            chrome.runtime.sendMessage({ action: "resetacrawler" });
+            console.log("WebCrawler. Método: salvarXML");
+            console.log("Enviando mensagem ao background - resetaCrawler");
+            chrome.runtime.sendMessage({ action: "resetCrawler" });
         } catch (error) {
             console.error('Erro ao salvar XML:', error);
         }
