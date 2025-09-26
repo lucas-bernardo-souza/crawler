@@ -73,6 +73,8 @@ class WebCrawler {
 
     processaDom() {
         try {
+            this.fecharPaginaAtual();
+
             // Estrutura inicial da página
             const url = window.location.href;
             const title = document.title.replace("&", "");
@@ -85,6 +87,8 @@ class WebCrawler {
             this.numState++;
             this.xmlSite += `\t\t<state name="Load" node_id="${this.numPagina}" item_id="null" state_id="${this.numState}"/>\n`;
             this.numState++;
+            
+            this.isPaginaFechada = false;
 
             if(this.index === 'true'){
                 this.index = 'false';
@@ -117,7 +121,7 @@ class WebCrawler {
             this.finalizaCrawler();
         }
     }
-
+/*
     mapeiaProximoComponente() {
         try{
             // Verifica se ainda há componentes para processar
@@ -158,6 +162,50 @@ class WebCrawler {
         } catch(criticalError){
             console.error("Erro crítico, finalizando crawler:", criticalError);
             this.fecharPaginaAtual();
+            this.finalizaCrawler();
+        }
+    }
+*/
+
+    finalizaMapeamentoPagina() {
+        // Garante que será executado apenas uma vez por página
+        if (this.isPaginaFechada) return;
+
+        console.log("Todos os componentes mapeados. Finalizando página...");
+        this.fecharPaginaAtual();
+        this.acessaProximoLink();
+    }
+
+    mapeiaProximoComponente(){
+        try{
+            // Verifica se ainda há componentes para processar
+            if(this.itemAtual >= this.DOM.length){
+                this.finalizaMapeamentoPagina();
+                return;
+            }
+
+            this.mostrarStatus(`Rastreando Componente: ${this.itemAtual + 1} de ${this.DOM.length}`);
+            
+            //Processa componente atual
+            try{
+                this.mapeiaComponente(this.itemAtual);
+            } catch(componentError){
+                console.warn(`Erro no componente ${this.itemAtual}, continuando...:`, componentError);
+            }
+
+            this.itemAtual++;
+
+            // Agenda o próximo processamento de forma assíncrona
+            setTimeout(() => {
+                try {
+                    this.mapeiaProximoComponente();
+                } catch (asyncError) {
+                    console.error("Erro assíncrono, finalizando crawler:", asyncError);
+                    this.finalizaCrawler(); // Finaliza geral em caso de erro grave
+                }
+            }, 0);
+        }catch(criticalError){
+            console.error("Erro crítico, finalizando crawler:", criticalError);
             this.finalizaCrawler();
         }
     }
@@ -358,7 +406,6 @@ class WebCrawler {
         console.log("Links por pai:", this.linksPorPai);
         console.log("Links acessados:", this.linksAcessados);
 
-        this.isPaginaFechada = false;
         let proximoLink = '';
         let linkInfoCompleto = null;
 
@@ -451,7 +498,7 @@ class WebCrawler {
     fecharPaginaAtual(){
         if(this.isPaginaFechada) return;
         // Conta quantas tags <page> abertas vs fechadas
-        const pageOpenCount = (this.xmlSite.match(/<page/g) || []).length;
+        const pageOpenCount = (this.xmlSite.match(/<page /g) || []).length;
         const pageCloseConunt = (this.xmlSite.match(/<\/page>/g) || []).length;
 
         // Fecha todas as páginas abertas não fechadas
