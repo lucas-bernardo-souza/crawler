@@ -27,12 +27,13 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
             });
             break;
         case "stopTracerAndSave":
-            stopAndSaveRecording(sender.tab.id);
+            console.log("BACKGROUND: Recebeu stopTracerAndSave. Solicitando salvamento...")
+            stopAndSaveRecording(request.tabId);
             sendResponse({status: "solicitando_salvamento"});
             break;
         // Ação do crawler - Ao finalizar o WebCrawler envia essa mensagem
         case "resetCrawler":
-            console.log("Recebeu a mensagem resetCrawler");
+            console.log("BACKGROUND: Recebeu a mensagem resetCrawler");
             resetState();
             chrome.runtime.sendMessage({action: 'updatePopupUI'});
             sendResponse({status: "crawler_resetado"});
@@ -184,7 +185,7 @@ async function startRecording(tabId, xmlTracer){
     
     if (isReady) {
         // Agora envia a mensagem para iniciar a gravação
-        await sendMessageToTab(tabId, {
+        await chrome.tabs.sendMessage(tabId, {
             action: "iniciarGravacao",
             gravando: true,
             xmlTracer: xmlTracer,
@@ -265,5 +266,20 @@ async function resetState() {
 
 // Envia a ordem para o content script salvar o ficheiro.
 async function stopAndSaveRecording(tabId) {
-    await sendMessageToTab(tabId, { action: "salvarXMLTracer" });
+    console.log(`background: Preparando para enviar 'salvarXMLTracer para a aba ${tabId}'`);
+    try{
+        const result = await chrome.storage.local.get('tracerState');
+
+        if(result.tracerState){
+            await chrome.tabs.sendMessage(tabId, {
+                action: 'salvarXMLTracer',
+                tracerState: result.tracerState
+            });
+            console.log(`background: Mensagem 'salvarXMLTracer' enviada com sucesso para a aba ${tabId}`);
+        } else{
+            console.error("background: Nenhum tracerState encontrado no storage para salvar.");
+        }
+    } catch(error){
+        console.error(`background: Erro ao enviar mensagem 'salvarXMLTracer' para a aba ${tabId}:`, error);
+    }
 }

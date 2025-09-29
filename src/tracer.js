@@ -49,6 +49,18 @@ class WebTracer {
         }
     }
 
+    initializeState(state){
+        if(!state) return;
+
+        console.log("Tracer: Inicializando estado a partir dos dados recebidos");
+        this.xmlFinalTracer = state.xmlFinalTracer || '';
+        this.xmlInteracoes = state.xmlInteracoes || '';
+        this.gravando = state.gravando || false;
+        this.xmlTracer = state.xmlTracer || '';
+        this.numInteracoes = state.numInteracoes || 1;
+        this.tempoInteracao = state.tempoInteracao || 0;
+    }
+
     iniciaTracer(tabid) {
         console.log("WebTracer: Iniciando o processo de gravação...");
         try{

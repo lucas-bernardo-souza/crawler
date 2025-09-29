@@ -47,12 +47,36 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
             });
             // Mantem canal aberto para a responsta assíncrona
             return true;
-        case "salvarXMLTracer":
-            if(tracer){
-                tracer.initializeState(request.tracerState);
-                tracer.salvarXMLTracer();
-                sendResponse({status: "xml_salvo"});
+        case "continueRecording":
+            console.log("CONTENT: Recebeu a mensagem continueRecording");
+            if(!tracer){
+                console.log("WebTracer não instanciado. Instanciando um novo WebTracer");
+                tracer = new WebTracer();
             }
+            // Inicializa o tracer com o estado recebido do background
+            tracer.initializeState(request.tracerState);
+
+            console.log("Chamando o método continuaTracer para a nova página");
+            // Inicia o monitoramento de eventos na nova página
+            tracer.continuaTracer()
+            sendResponse({status: "recording_continued"});
+            break;
+        case "salvarXMLTracer":
+            console.log("CONTENT: Recebeu a ordem para salvar o XML do tracer");
+            if(!tracer){
+                console.log("CONTENT: Instância do tracer não encontrata. Criando uma nova para o salvamento");
+                tracer = new WebTracer();
+            }
+
+            // Carrega o estado final recebido do background
+            tracer.initializeState(request.tracerState);
+
+            // Chama a função que monta o XML e dispara o download
+            tracer.salvarXMLTracer();
+            // Reseta o estado localmente
+            tracer = null;
+
+            sendResponse({status: "xml_salvo"});
             break;
         default:
             console.warn("Acao não reconhecida: ", request.action);

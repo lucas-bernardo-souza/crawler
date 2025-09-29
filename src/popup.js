@@ -130,7 +130,8 @@ async function handleTracerToggle() {
     } else {
         // Se está monitorando interações, envia mensagem para parar e salvar
         showMessage('Processando e guardando arquivos...', 'info');
-        await chrome.runtime.sendMessage({action: "stopTracerAndSave"});
+        const[tab] = await chrome.tabs.query({active: true, currentWindow: true});
+        await chrome.runtime.sendMessage({action: "stopTracerAndSave", tabId: tab.id});
         //window.close();
     }
 }

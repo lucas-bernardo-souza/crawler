@@ -71,14 +71,25 @@ class WebCrawler {
         };
     }
 
+    escapeXML(texto){
+        if(typeof texto !== 'string'){
+            return '';
+        }
+        return texto.replace(/&/g, '&amp;')
+                   .replace(/</g, '&lt;')
+                   .replace(/>/g, '&gt;')
+                   .replace(/"/g, '&quot;')
+                   .replace(/'/g, '&apos;');
+    }
+
     processaDom() {
         try {
             this.fecharPaginaAtual();
 
             // Estrutura inicial da página
-            const url = window.location.href;
-            const title = document.title.replace("&", "");
-            this.adicionaLinkAcessado(url);
+            const url = this.escapeXML(window.location.href);
+            const title = this.escapeXML(document.title);
+            this.adicionaLinkAcessado(window.location.href);
             
             this.xmlSite += `\t\t<page url="${url}" titulo="${title}" node_id="${this.numPagina}" index="${this.index}">\n`;
             this.xmlSite += `\t\t<event name="onLoad" node_id="${this.numPagina}" item_id="null" event_id="${this.numEvento}"/>\n`;
@@ -99,21 +110,17 @@ class WebCrawler {
 
             // Processar iframes
             const iframes = document.querySelectorAll('iframe');
-            console.log(`Encontrados ${iframes.length} iframes`);
 
             for (const iframe of iframes) {
                 try {
                     if (iframe.contentDocument && iframe.contentDocument.body) {
                         const iframeElements = iframe.contentDocument.querySelectorAll('body *');
                         this.DOM.push(...Array.from(iframeElements));
-                        console.log(`Adicionados ${iframeElements.length} elementos do iframe`);
                     }
                 } catch (e) {
                     console.warn('Não foi possível acessar iframe:', e);
                 }
             }
-
-            console.log(`Total de elementos para processar: ${this.DOM.length}`);
             this.mapeiaProximoComponente();
         } catch (error) {
             console.error("Erro em processaDom:", error);
@@ -121,51 +128,6 @@ class WebCrawler {
             this.finalizaCrawler();
         }
     }
-/*
-    mapeiaProximoComponente() {
-        try{
-            // Verifica se ainda há componentes para processar
-            if(this.itemAtual >= this.DOM.length){
-                // Todos os componentes foram processadors - fechar p[agina normalmente
-                //this.xmlSite += '\t\t</page>\n\n';
-                this.fecharPaginaAtual();
-                this.acessaProximoLink();
-                return;
-            }
-            this.mostrarStatus(`Rastreando Componente: ${this.itemAtual + 1} de ${this.DOM.length}`);
-            // Processa componente atual
-            try{
-                this.mapeiaComponente(this.itemAtual);
-            } catch (componentError) {
-                console.warn(`Erro no componente ${this.itemAtual}, continuando...:`, componentError);
-            }
-            this.itemAtual++;
-
-            // Agenda proximo processamento com controle de erro
-            if(this.itemAtual < this.DOM.length){
-                // Ainda há componentes - continua o processamento
-                setTimeout(() => {
-                    try{
-                        this.mapeiaProximoComponente();
-                    } catch (asyncError){
-                        console.error("Erro assíncrono, finalizando crawler:", asyncError);
-                        this.fecharPaginaAtual();
-                        this.finalizaCrawler();
-                    }
-                }, 0);
-            } else {
-                // Último componente processado - fechar a página
-                //this.xmlSite += '\t\t</page>\n\n';
-                this.fecharPaginaAtual();
-                this.acessaProximoLink();
-            }
-        } catch(criticalError){
-            console.error("Erro crítico, finalizando crawler:", criticalError);
-            this.fecharPaginaAtual();
-            this.finalizaCrawler();
-        }
-    }
-*/
 
     finalizaMapeamentoPagina() {
         // Garante que será executado apenas uma vez por página
