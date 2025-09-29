@@ -187,7 +187,11 @@ class WebTracer {
                 window.location.href = url;
             });
         } else {
+            e.preventDefault();
+            e.stopPropagation();
+
             if (confirm('Este link te levará para fora da página e encerrará o tracer. Tem certeza que deseja encerrá-lo?')) {
+                // 1. Registra a última interação (o clique no link externo)
                 this.insereInteracoes(
                     Array.from(document.body.querySelectorAll('*')).indexOf(elemento),
                     url,
@@ -197,10 +201,25 @@ class WebTracer {
                 );
 
                 this.tempoInteracao = timeStamp;
-                this.salvarEstado(() => {
-                    this.salvarXMLTracer();
+
+                // 2. Salva o estado UMA ÚLTIMA VEZ para garantir que a última interação seja registrada
+                this.salvarEstado(async () => {
+                    try {
+                        // 3. AVISA O BACKGROUND SCRIPT PARA PARAR E SALVAR.
+                        // Esta é a mudança principal.
+                        console.log("Tracer: Solicitando ao background para parar e salvar.");
+                        await chrome.runtime.sendMessage({ action: "stopTracerAndSave" });
+                        
+                        // Desabilitar mais cliques na página para evitar interações extras
+                        document.body.style.pointerEvents = 'none'; 
+                        alert('Gravação encerrada. O download do arquivo XML será iniciado.');
+
+                    } catch (error) {
+                        console.error("Tracer: Falha ao enviar mensagem 'stopTracerAndSave' para o background.", error);
+                    }
                 });
             }
+
         }
     }
 

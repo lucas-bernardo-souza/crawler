@@ -28,8 +28,15 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
             break;
         case "stopTracerAndSave":
             console.log("BACKGROUND: Recebeu stopTracerAndSave. Solicitando salvamento...")
-            stopAndSaveRecording(request.tabId);
-            sendResponse({status: "solicitando_salvamento"});
+            console.log(request.tabId);
+            if(request.tabId){
+                stopAndSaveRecording(request.tabId);
+                sendResponse({status: "solicitando_salvamento"});
+            } else{
+                console.error("Não foi possível obter o tabId do sender.");
+                sendResponse({status: "Erro ao obter tabId para solicitar salvamento"});
+            }
+            
             break;
         // Ação do crawler - Ao finalizar o WebCrawler envia essa mensagem
         case "resetCrawler":
