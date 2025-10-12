@@ -130,6 +130,7 @@ async function handleTracerToggle() {
     } else {
         // Se está monitorando interações, envia mensagem para parar e salvar
         showMessage('Processando e guardando arquivos...', 'info');
+<<<<<<< HEAD
         const tabs = await chrome.tabs.query({active: true, currentWindow: true});
         if(tabs && tabs.length > 0 ){
             console.log("Enviando mensagem stopTracerAndSave:", tabs.id);
@@ -139,6 +140,10 @@ async function handleTracerToggle() {
         }
         
         //window.close();
+=======
+        const[tab] = await chrome.tabs.query({active: true, currentWindow: true});
+        await chrome.runtime.sendMessage({action: "stopTracerAndSave", tabId: tab.id});
+>>>>>>> 9a50353 (Correcao do armazenamento e recuperacao do estado do tracer)
     }
 }
 
@@ -175,7 +180,6 @@ async function validateAndStartTracer(xmlContent) {
 
     try {
         const [tab] = await chrome.tabs.query({active: true, currentWindow: true});
-        console.log(tab);
         console.log("Enviando mensagem: startTracer");
 
         // Envia o XML para o background, que vai gerir o início da gravação
@@ -186,7 +190,6 @@ async function validateAndStartTracer(xmlContent) {
         });
 
         showMessage('Tracer iniciado!', 'success');
-        //setTimeout(() => window.close(), 1000);
     } catch (error){
         console.error('Erro ao enviar mensagem para iniciar tracer:', error);
         showMessage('Não foi possível iniciar o tracer.', 'error');

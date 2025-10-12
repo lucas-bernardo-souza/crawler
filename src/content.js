@@ -40,11 +40,9 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
             tracer.gravando = request.gravando;
             tracer.xmlTracer = request.xmlTracer;
             
-            tracer.salvarEstado(()=>{
-                console.log("Arrow function salvarEstado");
-                tracer.iniciaTracer(request.tabid);
-                sendResponse({status: "gravacao_iniciada"});
-            });
+            tracer.iniciaTracer();
+            sendResponse({status: "tracer_iniciado"});
+            
             // Mantem canal aberto para a responsta assíncrona
             return true;
         case "continueRecording":
@@ -63,21 +61,30 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
             break;
         case "salvarXMLTracer":
             console.log("CONTENT: Recebeu a ordem para salvar o XML do tracer");
-            if(!tracer){
-                console.log("CONTENT: Instância do tracer não encontrata. Criando uma nova para o salvamento");
-                tracer = new WebTracer();
-            }
-
-            // Carrega o estado final recebido do background
-            tracer.initializeState(request.tracerState);
-
-            // Chama a função que monta o XML e dispara o download
-            tracer.salvarXMLTracer();
-            // Reseta o estado localmente
-            tracer = null;
-
-            sendResponse({status: "xml_salvo"});
-            break;
+            (async () => {
+                if(!tracer) {
+                    tracer = new WebTracer();
+                    try {
+                        await tracer.initializeFromStorage();
+                    } catch (e){
+                        console.warn('content stop: falha restore', e);
+                    }
+                } else {
+                    try {
+                        await tracer.initializeFromStorage();
+                    } catch (e){
+                        console.warn('content stop: falha restore', e);
+                    }
+                }
+                try {
+                    await tracer.salvarXMLTracer();
+                    sendResponse({status: "salvo"});
+                } catch(e){
+                    console.error("Erro ao salvar XML do tracer:". e);
+                    sendResponse({status: "erro", erro: String(e)});
+                }
+            }) ();
+            return true;
         default:
             console.warn("Acao não reconhecida: ", request.action);
             return false;
@@ -85,8 +92,6 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     // retorna false para todas as outras mensagens síncronas.
     return false;
 });
-
-// O que faz essa async?
 
 (async () => {
     try {
@@ -105,6 +110,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
             console.log("Continuando uma gravação existente...");
             tracer = new WebTracer();
             tracer.initializeState(response.tracerState);
+            tracer.continuaTracer();
         }
     } catch(error) {
          // Ignora erros de conexão específicos

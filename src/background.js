@@ -59,20 +59,31 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
             });
             // resposta assíncrona
             return true;
-        case "abreLink":
-            console.log("Recebeu a mensagem abreLink");
-            chrome.storage.local.set({crawlerState: request.crawlerState}, () => {
-                chrome.tabs.update(sender.tab.id, {url: request.url});
-            });
-            break;
         case "processFinished":
             resetState();
             chrome.runtime.sendMessage({action: 'updatePopupUI'});
             break;
         // Ação do Tracer (content): Pede para salvar o estado atual
         case "saveTracerState":
-            chrome.storage.local.set({tracerState: request.tracerState});
-            break;
+            (async () => {
+                try {
+                const s = request.tracerState || {};
+                await chrome.storage.local.set({
+                    xmlFinalTracer: s.xmlFinalTracer || '',
+                    xmlInteracoes: s.xmlInteracoes || '',
+                    gravando: !!s.gravando,
+                    xmlTracer: s.xmlTracer || '',
+                    numInteracoes: Number.isFinite(s.numInteracoes) ? s.numInteracoes : 1,
+                    tempoInteracao: Number.isFinite(s.tempoInteracao) ? s.tempoInteracao : 0
+                });
+                sendResponse({ status: "ok" });
+                } catch (e) {
+                    console.error("background saveTracerState erro:", e);
+                    sendResponse({ status: "erro", erro: String(e) });
+                }
+                return true;
+            })
+            
         // Ação para manter o service worker ativo
         case "keepAlive":
             sendResponse({status: "alive"});
@@ -101,8 +112,7 @@ chrome.tabs.onUpdated.addListener(async(tabId, changeInfo, tab) => {
         // Se estiver GRAVANDO, envia a mensagem para continuar
         else if (isRecording && tracerState) {
             await sendMessageToTab(tabId, {
-                action: "continueRecording",
-                tracerState: tracerState
+                action: "continueRecording"
             });
 
         }
