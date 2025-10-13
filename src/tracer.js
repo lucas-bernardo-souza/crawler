@@ -68,6 +68,8 @@ class WebTracer {
 
     escapeXml(unsafe) {
         if (!unsafe) return '';
+
+        let safeString = unsafe.replace(/[^\x09\x0A\x0D\x20-\x7E\xA0-\xFF\u0100-\uD7FF\uE000-\uFFFD]/g, '');
         return unsafe.replace(/[<>&'"]/g, function (c) {
             switch (c) {
                 case '<': return '&lt;';
@@ -75,8 +77,21 @@ class WebTracer {
                 case '&': return '&amp;';
                 case '\'': return '&apos;';
                 case '"': return '&quot;';
+                default: return c;
             }
         });
+    }
+
+    // Limpa textos antes de incluí-los no XML
+    sanitizeText(text) {
+        if (!text) return '';
+        
+        // Remove caracteres problemáticos antes de processar
+        return text
+            .replace(/[^\x09\x0A\x0D\x20-\x7E\xA0-\xFF\u0100-\uD7FF\uE000-\uFFFD]/g, '')
+            .replace(/[\uD83E\uDC06]/g, '')
+            .replace(/[\u{1F600}-\u{1F64F}\u{1F300}-\u{1F5FF}\u{1F680}-\u{1F6FF}\u{1F700}-\u{1F77F}\u{1F780}-\u{1F7FF}\u{1F800}-\u{1F8FF}\u{1F900}-\u{1F9FF}\u{1FA00}-\u{1FA6F}\u{1FA70}-\u{1FAFF}]/gu, '')
+            .trim();
     }
 
     async iniciaTracer() {
@@ -460,9 +475,9 @@ class WebTracer {
         let idFimState = 0;
         let idTargetEvent = 0;
         let sourceID = 0;
-        const urlMapa = this.normalizeUrl(window.location.href);
+        const urlMapa = this.sanitizeText(this.normalizeUrl(window.location.href));
 
-        url = this.normalizeUrl(url);
+        url = this.sanitizeText(this.normalizeUrl(url));
 
         const pages = this.xmlJquery.querySelectorAll('pages page');
         
@@ -542,7 +557,7 @@ class WebTracer {
         let idFimState = 0;
         let idTargetEvent = 0;
         let idTarget = 0;
-        const urlMapa = this.normalizeUrl(window.location.href);
+        const urlMapa = this.sanitizeText(this.normalizeUrl(window.location.href));
 
         const pages = this.xmlJquery.querySelectorAll('pages page');
 
@@ -591,7 +606,7 @@ class WebTracer {
         let idFimState = 0;
         let idTargetEvent = 0;
         let idTarget = 0;
-        const urlMapa = this.normalizeUrl(window.location.href);
+        const urlMapa = this.sanitizeText(this.normalizeUrl(window.location.href));
         const elemento = Array.from(document.body.querySelectorAll('*'))[domId];
         const valor = elemento ? elemento.value : '';
         const pages = this.xmlJquery.querySelectorAll('pages page');
@@ -637,7 +652,7 @@ class WebTracer {
         let idFimState = 0;
         let idTargetEvent = 0;
         let idTarget = 0;
-        const urlMapa = this.normalizeUrl(window.location.href);
+        const urlMapa = this.sanitizeText(this.normalizeUrl(window.location.href));
         
         // Obter estado do checkbox diretamente do DOM
         const elemento = Array.from(document.body.querySelectorAll('*'))[domId];
@@ -704,7 +719,7 @@ class WebTracer {
         let idFimState = 0;
         let idTargetEvent = 0;
         let idTarget = 0;
-        const urlMapa = this.normalizeUrl(window.location.href);
+        const urlMapa = this.sanitizeText(this.normalizeUrl(window.location.href));
         
         // Obter estado do radio diretamente do DOM
         const elemento = Array.from(document.body.querySelectorAll('*'))[domId];
@@ -764,7 +779,7 @@ class WebTracer {
         let idFimState = 0;
         let idTargetEvent = 0;
         let idTarget = 0;
-        const urlMapa = this.normalizeUrl(window.location.href);
+        const urlMapa = this.sanitizeText(this.normalizeUrl(window.location.href));
         
         // Obter valor do select diretamente do DOM
         const elemento = Array.from(document.body.querySelectorAll('*'))[domId];
@@ -909,18 +924,48 @@ class WebTracer {
     }
 
     corrigirXML(xmlString) {
+        if(!xmlString) return '';
         // Remover caracteres inválidos
         let cleanXML = xmlString.replace(/[^\x09\x0A\x0D\x20-\xFF\u0100-\uD7FF\uE000-\uFFFD]/g, '');
         
+        cleanXML = cleanXML.replace(/[\uD83E\uDC06]/g, '');
+        cleanXML = cleanXML.replace(/[\u{1F600}-\u{1F64F}]/gu, ''); // Emoticons
+        cleanXML = cleanXML.replace(/[\u{1F300}-\u{1F5FF}]/gu, ''); // Símbolos e pictogramas
+        cleanXML = cleanXML.replace(/[\u{1F680}-\u{1F6FF}]/gu, ''); // Transporte e símbolos
+        cleanXML = cleanXML.replace(/[\u{1F700}-\u{1F77F}]/gu, ''); // Alquimia
+        cleanXML = cleanXML.replace(/[\u{1F780}-\u{1F7FF}]/gu, ''); // Formas geométricas
+        cleanXML = cleanXML.replace(/[\u{1F800}-\u{1F8FF}]/gu, ''); // Seta suplementar
+        cleanXML = cleanXML.replace(/[\u{1F900}-\u{1F9FF}]/gu, ''); // Suplementar
+        cleanXML = cleanXML.replace(/[\u{1FA00}-\u{1FA6F}]/gu, ''); // Chess
+        cleanXML = cleanXML.replace(/[\u{1FA70}-\u{1FAFF}]/gu, ''); // Símbolos
+        
+        // Remove caracteres de controle (exceto tab, LF, CR)
+        cleanXML = cleanXML.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '');
+        
         // Garantir que todas as tags estão fechadas corretamente
         cleanXML = cleanXML.replace(/<interaction([^>]*)\/>/g, '<interaction$1></interaction>');
+        cleanXML = cleanXML.replace(/<\/?tracer>/g, '');
+        cleanXML = cleanXML.replace(/<interactions>/g, '\t<interactions>\n');
+        cleanXML = cleanXML.replace(/<\/interactions>/g, '\t</interactions>\n');
         
-        // Escapar caracteres especiais
-        cleanXML = cleanXML.replace(/&/g, '&amp;')
-                        .replace(/</g, '&lt;')
-                        .replace(/>/g, '&gt;')
-                        .replace(/"/g, '&quot;')
-                        .replace(/'/g, '&apos;');
+        // Garantir que o XML termina com </site>
+        if (!cleanXML.trim().endsWith('</site>')) {
+            if (cleanXML.trim().endsWith('</tracer>')) {
+                cleanXML = cleanXML.replace(/<\/tracer>\s*$/, '</site>');
+            } else {
+                cleanXML += '\n</site>';
+            }
+        }
+        
+        // Validar e corrigir estrutura básica
+        if (!cleanXML.includes('</interactions>') && cleanXML.includes('<interactions>')) {
+            const interactionsIndex = cleanXML.indexOf('<interactions>');
+            const lastInteractionIndex = cleanXML.lastIndexOf('</interaction>');
+            
+            if (lastInteractionIndex > interactionsIndex) {
+                cleanXML = cleanXML.substring(0, lastInteractionIndex + 15) + '\n\t</interactions>\n</site>';
+            }
+        }
         
         return cleanXML;
     }
@@ -942,43 +987,190 @@ class WebTracer {
         }
 
         this.xmlFinalTracer += '\t</pages>\n';
+
+        // Adicionar interações se existirem
+        if (this.xmlInteracoes && this.xmlInteracoes.trim() !== '') {
+            this.xmlFinalTracer += this.xmlInteracoes;
+        }
+        
+        // Fechar corretamente com </site>
+        this.xmlFinalTracer += '</site>\n';
     }
 
     realizarDownload(xmlContent) {
-        try{
-            const blob = new Blob([xmlContent], { type: "text/xml;charset=utf-8" });
+       try {
+            // Validação do conteúdo
+            if (!xmlContent || xmlContent.trim() === '') {
+                console.error('Conteúdo XML vazio ou inválido');
+                alert('Erro: Conteúdo XML vazio. Não é possível realizar o download.');
+                return;
+            }
+
+            console.log('Preparando download, tamanho do XML:', xmlContent.length);
+            
+            // Usar tipo MIME que força download
+            const blob = new Blob([xmlContent], { 
+                type: "application/xml;charset=utf-8"
+            });
+            
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
-            a.download = "mapa-tracer-" + Date.now() + ".xml";
+            
+            // Nome do arquivo mais específico
+            a.download = `mapa-tracer-${this.domain}-${Date.now()}.xml`;
             a.style.display = 'none';
+            
+            // Adicionar atributos que forçam download
+            a.setAttribute('download', a.download);
+            a.setAttribute('type', 'application/xml');
+            
             document.body.appendChild(a);
 
-            const attemptDownload = () => {
-            try {
-                a.click();
-                console.log('Download iniciado');
+            // Função para limpeza
+            const cleanup = () => {
                 setTimeout(() => {
-                if (document.body.contains(a)) {
-                    document.body.removeChild(a);
-                }
-                setTimeout(() => {
-                    URL.revokeObjectURL(url);
-                    // Limpa depois, mas dá espaço para inspeção
-                    this.limparEstado();
-                }, 5000);
-                }, 1000);
-            } catch (error) {
-                console.error('Erro no download, tentando novamente...', error);
-                setTimeout(attemptDownload, 500);
-            }
+                    if (document.body.contains(a)) {
+                        document.body.removeChild(a);
+                        console.log('Elemento <a> removido do DOM');
+                    }
+                    setTimeout(() => {
+                        URL.revokeObjectURL(url);
+                        console.log('URL do Blob revogada');
+                        
+                        // Limpar estado após download
+                        this.limparEstado();
+                        console.log('Estado limpo após download');
+                    }, 1000);
+                }, 3000);
             };
 
-            setTimeout(attemptDownload, 100);
+            // Estratégia 1: Click simples
+            console.log('Tentativa 1: click() simples');
+            a.click();
+            
+            // Verificar se o download foi iniciado
+            setTimeout(() => {
+                // Estratégia 2: MouseEvent com mais parâmetros
+                console.log('Tentativa 2: MouseEvent detalhado');
+                const event = new MouseEvent('click', {
+                    bubbles: true,
+                    cancelable: true,
+                    view: window,
+                    detail: 1
+                });
+                
+                a.dispatchEvent(event);
+                
+                // Estratégia 3: Se ainda não funcionar, tentar approach diferente
+                setTimeout(() => {
+                    // Cria um iframe para forçar download
+                    console.log('Tentativa 3: usando iframe');
+                    const iframe = document.createElement('iframe');
+                    iframe.style.display = 'none';
+                    document.body.appendChild(iframe);
+                    
+                    // Tenta fazer download via iframe
+                    setTimeout(() => {
+                        if (document.body.contains(a)) {
+                            console.log('Download não iniciado, tentando abordagem alternativa...');
+                            
+                            // Última tentativa: cria link visível
+                            a.style.display = 'block';
+                            a.style.position = 'fixed';
+                            a.style.top = '10px';
+                            a.style.left = '10px';
+                            a.style.zIndex = '10000';
+                            a.style.background = '#f0f0f0';
+                            a.style.padding = '10px';
+                            a.style.border = '2px solid #007cba';
+                            a.style.color = '#007cba';
+                            a.textContent = 'CLIQUE AQUI PARA BAIXAR O XML';
+                            
+                            alert('O download automático não funcionou. Um link foi criado no topo da página. Clique nele com o BOTÃO DIREITO e selecione "Salvar link como..."');
+                        } else {
+                            cleanup();
+                        }
+                    }, 1000);
+                    
+                }, 500);
+                
+            }, 200);
+
         } catch (error) {
-            console.error('Erro no processo de download:', error);
-            // Adiar limpeza para permitir depuração
-            setTimeout(() => this.limparEstado(), 3000);
+            console.error('Erro crítico no processo de download:', error);
+            
+            // Fallback: oferecer para copiar o conteúdo
+            this.fallbackCopyXML(xmlContent);
+        }
+    }
+
+    // Método auxiliar para fallback
+    fallbackCopyXML(xmlContent) {
+        try {
+            // Tenta usar a API moderna de clipboard
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(xmlContent).then(() => {
+                    const shouldDownload = confirm(
+                        'Não foi possível iniciar o download automaticamente. ' +
+                        'O conteúdo XML foi copiado para sua área de transferência.\n\n' +
+                        'Deseja abrir uma nova janela com o XML para salvar manualmente?'
+                    );
+                    
+                    if (shouldDownload) {
+                        this.openXMLInNewWindow(xmlContent);
+                    }
+                }).catch(() => {
+                    this.openXMLInNewWindow(xmlContent);
+                });
+            } else {
+                this.openXMLInNewWindow(xmlContent);
+            }
+        } catch (copyError) {
+            this.openXMLInNewWindow(xmlContent);
+        }
+    }
+
+    // Método para abrir XML em nova janela para salvar manualmente
+    openXMLInNewWindow(xmlContent) {
+        const newWindow = window.open('', '_blank');
+        if (newWindow) {
+            newWindow.document.write(`
+                <!DOCTYPE html>
+                <html>
+                <head>
+                    <title>XML do Tracer - Salve este arquivo</title>
+                    <style>
+                        body { font-family: Arial, sans-serif; padding: 20px; }
+                        pre { background: #f5f5f5; padding: 15px; border-radius: 5px; }
+                        .instructions { 
+                            background: #fff3cd; 
+                            border: 1px solid #ffeaa7; 
+                            padding: 15px; 
+                            margin-bottom: 20px;
+                            border-radius: 5px;
+                        }
+                    </style>
+                </head>
+                <body>
+                    <div class="instructions">
+                        <h3>📁 Como salvar o arquivo XML:</h3>
+                        <ol>
+                            <li>Pressione <strong>Ctrl+S</strong> (Windows) ou <strong>Cmd+S</strong> (Mac)</li>
+                            <li>Salve o arquivo como <strong>mapa-tracer.xml</strong></li>
+                            <li>Certifique-se de que o tipo é <strong>Arquivo XML (.xml)</strong></li>
+                        </ol>
+                    </div>
+                    <pre>${this.escapeXml(xmlContent)}</pre>
+                </body>
+                </html>
+            `);
+            newWindow.document.close();
+            
+            // Foca na nova janela
+            newWindow.focus();
+        } else {
+            alert('Popup bloqueado! Por favor, permita popups para este site e tente novamente.');
         }
     }
 
@@ -989,7 +1181,6 @@ class WebTracer {
         this.gravando = false;
 
         await this.salvarEstado();
-
         await new Promise(resolve => setTimeout(resolve, 500));
         
         // Restaura o último estado persistido
@@ -1008,7 +1199,7 @@ class WebTracer {
         if(!this.xmlJquery && this.xmlTracer){
             try {
                 const parser = new DOMParser();
-                this.xmlJquery = parseFromString(this.xmlTracer, 'text/xml');
+                this.xmlJquery = parser.parseFromString(this.xmlTracer, 'text/xml');
                 const parseError = this.xmlJquery.querySelector('parsererror');
                 if(parseError){
                     console.error('salvarXMLTracer: XML do mapa inválido:', parseError.textContent);
@@ -1038,13 +1229,23 @@ class WebTracer {
                     }
                 }
             }
-
-            // Garante fechamento de tags e inclusão das interações
-            if(!finalXML.includes('<interactions')){
-                finalXML += '\t<interactions>\n';
-                finalXML += (this.xmlInteracoes || '');
-                finalXML += '\t</interactions>\n';
-                finalXML += '</tracer>\n';
+            finalXML = this.corrigirXML(finalXML);
+            const invalidChars = finalXML.match(/[^\x09\x0A\x0D\x20-\x7E\xA0-\xFF\u0100-\uD7FF\uE000-\uFFFD]/g);
+            if (invalidChars) {
+                console.warn('Caracteres inválidos ainda presentes após correção:', invalidChars);
+                // Remove qualquer caractere problemático residual
+                finalXML = finalXML.replace(/[^\x09\x0A\x0D\x20-\x7E\xA0-\xFF\u0100-\uD7FF\uE000-\uFFFD]/g, '');
+            }
+            // Garantir estrutura básica se ainda estiver incompleto
+            if (!finalXML.includes('</site>')) {
+                if (finalXML.includes('<interactions>') && !finalXML.includes('</interactions>')) {
+                    const interactionsContent = finalXML.split('<interactions>')[1];
+                    finalXML = finalXML.split('<interactions>')[0] + 
+                            '\t<interactions>\n' + interactionsContent + 
+                            '\t</interactions>\n</site>';
+                } else {
+                    finalXML += '\n</site>';
+                }
             }
 
             // Validar o XML final
