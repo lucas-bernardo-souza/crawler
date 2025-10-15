@@ -130,20 +130,8 @@ async function handleTracerToggle() {
     } else {
         // Se está monitorando interações, envia mensagem para parar e salvar
         showMessage('Processando e guardando arquivos...', 'info');
-<<<<<<< HEAD
-        const tabs = await chrome.tabs.query({active: true, currentWindow: true});
-        if(tabs && tabs.length > 0 ){
-            console.log("Enviando mensagem stopTracerAndSave:", tabs.id);
-            await chrome.runtime.sendMessage({action: "stopTracerAndSave", tabId: tabs[0].id});
-        } else{
-            console.error("Popup: Não foi possível encontrar a aba ativa. A mensagem não foi enviada.");
-        }
-        
-        //window.close();
-=======
         const[tab] = await chrome.tabs.query({active: true, currentWindow: true});
         await chrome.runtime.sendMessage({action: "stopTracerAndSave", tabId: tab.id});
->>>>>>> 9a50353 (Correcao do armazenamento e recuperacao do estado do tracer)
     }
 }
 

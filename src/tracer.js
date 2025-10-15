@@ -106,53 +106,46 @@ class WebTracer {
             }
 
             
-            this.domAtual = document.body.innerHTML;
-            const urlMapa = window.location.href;
-            const titulo = document.title;
+            if(this.xmlFinalTracer.trim() === ''){
+                this.domAtual = document.body.innerHTML;
+                const urlMapa = window.location.href;
+                const titulo = document.title;
 
-            // Parse do XML do crawler
-            const parser = new DOMParser();
-            this.xmlJquery = parser.parseFromString(this.xmlTracer, "text/xml");
+                // Parse do XML do crawler
+                const parser = new DOMParser();
+                this.xmlJquery = parser.parseFromString(this.xmlTracer, "text/xml");
+                // Verificar se o parsing foi bem-sucedido
+                const parseError = this.xmlJquery.querySelector('parsererror');
+                if (parseError) {
+                    console.error('Erro no parsing do XML:', parseError.textContent);
+                    throw new Error('XML inválido ou mal formado');
+                }
 
-            // Verificar se o parsing foi bem-sucedido
-            const parseError = this.xmlJquery.querySelector('parsererror');
-            if (parseError) {
-                console.error('Erro no parsing do XML:', parseError.textContent);
-                throw new Error('XML inválido ou mal formado');
+                this.xmlFinalTracer = '<?xml version="1.0" encoding="UTF-8"?>\n';
+                this.xmlFinalTracer += `<site url="${this.escapeXml(urlMapa)}" titulo="${this.escapeXml(titulo)}" tipo="tracer">\n`;
+                this.xmlFinalTracer += '\t<pages>\n';
+
+                // Utilização do objeto XML
+                const pagesNode = this.xmlJquery.querySelector('pages');
+                if(pagesNode){
+                    // Obtendo o conteúdo das tags <page>
+                    const pageElements = pagesNode.querySelectorAll('page');
+                    pageElements.forEach(page => {
+                        this.xmlFinalTracer += '\t\t' + page.outerHTML + '\n';
+                    });
+                } else {
+                    console.error('Não foi possível encontrar a seção <pages> no XML');
+                    this.xmlFinalTracer += '\t\t<!-- Pages não encontradas -->\n';
+                }
+                this.xmlFinalTracer += '\t</pages>\n';
+
+                this.xmlInteracoes = '\t<interactions>\n';
             }
-
-            this.xmlFinalTracer = '<?xml version="1.0" encoding="UTF-8"?>\n';
-            this.xmlFinalTracer += `<site url="${this.escapeXml(urlMapa)}" titulo="${this.escapeXml(titulo)}" tipo="tracer">\n`;
-            this.xmlFinalTracer += '\t<pages>\n';
-
-            // Utilização do objeto XML
-            const pagesNode = this.xmlJquery.querySelector('pages');
-            if(pagesNode){
-                // Obtendo o conteúdo das tags <page>
-                const pageElements = pagesNode.querySelectorAll('page');
-                pageElements.forEach(page => {
-                    console.log(page.outerHTML);
-                    this.xmlFinalTracer += '\t\t' + page.outerHTML + '\n';
-                });
-            } else {
-                console.error('Não foi possível encontrar a seção <pages> no XML');
-                this.xmlFinalTracer += '\t\t<!-- Pages não encontradas -->\n';
-            }
-
-            this.xmlFinalTracer += '\t</pages>\n';
-
-            this.xmlInteracoes = '\t<interactions>\n';
-            
             this.gravando = true;
 
             await this.salvarEstado();
 
             this.monitorarEventos();
-
-            console.log("Tracer iniciado com sucesso!");
-            console.log("xmlFinalTracer inicializado:", this.xmlFinalTracer.length, "caracteres");
-            console.log("xmlInteracoes inicializado:", this.xmlInteracoes.length, "caracteres");
-
         } catch (error){
             console.error('Erro ao iniciar tracer:', error);
             this.gravando = false;
@@ -234,13 +227,8 @@ class WebTracer {
                 window.location.href = url;
             }
         } else {
-<<<<<<< HEAD
-            e.preventDefault();
-            e.stopPropagation();
-=======
             this.encerrando = true;
             this.removerEventos();
->>>>>>> 9a50353 (Correcao do armazenamento e recuperacao do estado do tracer)
 
             if (confirm('Este link te levará para fora da página e encerrará o tracer. Tem certeza que deseja encerrá-lo?')) {
                 // 1. Registra a última interação (o clique no link externo)
@@ -253,30 +241,11 @@ class WebTracer {
                 );
 
                 this.tempoInteracao = timeStamp;
-<<<<<<< HEAD
-
-                // 2. Salva o estado UMA ÚLTIMA VEZ para garantir que a última interação seja registrada
-                this.salvarEstado(async () => {
-                    try {
-                        // 3. AVISA O BACKGROUND SCRIPT PARA PARAR E SALVAR.
-                        // Esta é a mudança principal.
-                        console.log("Tracer: Solicitando ao background para parar e salvar.");
-                        await chrome.runtime.sendMessage({ action: "stopTracerAndSave" });
-                        
-                        // Desabilitar mais cliques na página para evitar interações extras
-                        document.body.style.pointerEvents = 'none'; 
-                        alert('Gravação encerrada. O download do arquivo XML será iniciado.');
-
-                    } catch (error) {
-                        console.error("Tracer: Falha ao enviar mensagem 'stopTracerAndSave' para o background.", error);
-                    }
-=======
                 this.salvarEstado(() => {
                     this.salvarXMLTracer();
                     setTimeout(() => {
                         window.location.href = url;
                     }, 1000);
->>>>>>> 9a50353 (Correcao do armazenamento e recuperacao do estado do tracer)
                 });
             } else {
                 // Se o usuário cancelar, o tracer é reativado
