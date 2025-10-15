@@ -959,7 +959,16 @@ class WebTracer {
 
         // Adicionar interações se existirem
         if (this.xmlInteracoes && this.xmlInteracoes.trim() !== '') {
-            this.xmlFinalTracer += this.xmlInteracoes;
+            if(this.xmlInteracoes.includes('<interactions>')){
+                this.xmlFinalTracer += this.xmlInteracoes;
+                this.xmlFinalTracer += '\t</interactions>\n';
+            } else {
+                this.xmlFinalTracer += '\t<interactions>\n';
+                this.xmlFinalTracer += this.xmlInteracoes;
+                this.xmlFinalTracer += '\t</interactions>\n';
+            }
+        } else {
+            this.xmlFinalTracer += '\t<interactions>\n\t</interactions>\n';
         }
         
         // Fechar corretamente com </site>
