@@ -3,6 +3,8 @@ class WebCrawler {
         this.linksPorPai = [];
         this.linksAcessados = [];
         this.xmlSite = '';
+        this.xmlStructure = '';
+        this.componentMap = new Map();
         this.numPagina = 1;
         this.numComponente = 1;
         this.numEvento = 1;
@@ -49,6 +51,7 @@ class WebCrawler {
         this.linksPorPai = state.linksPorPai || [];
         this.linksAcessados = state.linksAcessados || [];
         this.xmlSite = state.xmlSite || '';
+        this.xmlStructure = state.xmlStructure || '';
         this.numPagina = state.numPagina || 1;
         this.numComponente = state.numComponente || 1;
         this.numEvento = state.numEvento || 1;
@@ -62,6 +65,7 @@ class WebCrawler {
             linksPorPai: this.linksPorPai,
             linksAcessados: this.linksAcessados,
             xmlSite: this.xmlSite,
+            xmlStructure: this.xmlStructure,
             numPagina: this.numPagina,
             numComponente: this.numComponente,
             numEvento: this.numEvento,
@@ -132,8 +136,9 @@ class WebCrawler {
     finalizaMapeamentoPagina() {
         // Garante que será executado apenas uma vez por página
         if (this.isPaginaFechada) return;
+        // Inicia o mapeamento da estrutura da página
+        this.geraEstruturaDOM();
 
-        console.log("Todos os componentes mapeados. Finalizando página...");
         this.fecharPaginaAtual();
         this.acessaProximoLink();
     }
@@ -200,6 +205,14 @@ class WebCrawler {
                         });
                     }
 
+                    this.componentMap.set(dom_id, {
+                        itemId: this.numComponente,
+                        type: 'link',
+                        name: this.verificaVazio(elemento.textContent),
+                        externo: externo ? 'true' : 'false',
+                        isComponent: true
+                    });
+
                     this.xmlSite += `\t\t\t<component type="link" dom_id="${dom_id}" node_id="${this.numPagina}" item_id="${this.numComponente}" name="${this.verificaVazio(elemento.textContent)}" externo="${externo ? 'true' : 'false'}">\n`;
                     this.xmlSite += `\t\t\t\t<event name="click" node_id="${this.numPagina}" item_id="${this.numComponente}" event_id="${this.numEvento}"><![CDATA[${elemento.getAttribute('href')}]]></event>\n`;
                     this.numEvento++;
@@ -221,6 +234,12 @@ class WebCrawler {
                 var checks = ["checkbox", "radio"];
 
                 if (botoes.indexOf(tipo) != -1) {
+                    this.componentMap.set(dom_id, {
+                        itemId: this.numComponente,
+                        type: 'button',
+                        name: this.verificaVazio(elemento.getAttribute('name')),
+                        isComponent: true
+                    });
                     this.xmlSite += `\t\t\t<component type="button" dom_id="${dom_id}" node_id="${this.numPagina}" item_id="${this.numComponente}" name="${this.verificaVazio(elemento.getAttribute('name'))}">\n`;
                     this.xmlSite += `\t\t\t\t<event name="click" node_id="${this.numPagina}" item_id="${this.numComponente}" event_id="${this.numEvento}"></event>\n`;
                     this.numEvento++;
@@ -233,6 +252,12 @@ class WebCrawler {
                     this.xmlSite += '\t\t\t</component>\n';
                     this.numComponente++;
                 } else if (campos.indexOf(tipo) != -1 || tipo === 'range') {
+                    this.componentMap.set(dom_id, {
+                        itemId: this.numComponente,
+                        type: 'input',
+                        name: this.verificaVazio(elemento.getAttribute('name')),
+                        isComponent: true
+                    });
                     this.xmlSite += `\t\t\t<component type="input" dom_id="${dom_id}" node_id="${this.numPagina}" item_id="${this.numComponente}" name="${this.verificaVazio(elemento.getAttribute('name'))}">\n`;
                     this.xmlSite += `\t\t\t\t<event name="focus" node_id="${this.numPagina}" item_id="${this.numComponente}" event_id="${this.numEvento}"></event>\n`;
                     this.numEvento++;
@@ -252,6 +277,12 @@ class WebCrawler {
                     this.numComponente++;
                 } else if (checks.indexOf(tipo) != -1) {
                     const typeName = tipo === 'checkbox' ? 'check' : 'radio';
+                    this.componentMap.set(dom_id, {
+                        itemId: this.numComponente,
+                        type: typeName,
+                        name: this.verificaVazio(elemento.getAttribute('name')),
+                        isComponent: true
+                    });
                     this.xmlSite += `\t\t\t<component type="${typeName}" dom_id="${dom_id}" node_id="${this.numPagina}" item_id="${this.numComponente}" name="${this.verificaVazio(elemento.getAttribute('name'))}">\n`;
                     this.xmlSite += `\t\t\t\t<event name="click" node_id="${this.numPagina}" item_id="${this.numComponente}" event_id="${this.numEvento}"></event>\n`;
                     this.numEvento++;
@@ -269,6 +300,12 @@ class WebCrawler {
                 break;
 
             case 'textarea':
+                this.componentMap.set(dom_id, {
+                    itemId: this.numComponente,
+                    type: 'input',
+                    name: this.verificaVazio(elemento.getAttribute('name')),
+                    isComponent: true
+                });
                 this.xmlSite += `\t\t\t<component type="input" dom_id="${dom_id}" node_id="${this.numPagina}" item_id="${this.numComponente}" name="${this.verificaVazio(elemento.getAttribute('name'))}">\n`;
                 this.xmlSite += `\t\t\t\t<event name="focus" node_id="${this.numPagina}" item_id="${this.numComponente}" event_id="${this.numEvento}"></event>\n`;
                 this.numEvento++;
@@ -289,6 +326,12 @@ class WebCrawler {
                 break;
 
             case 'select':
+                this.componentMap.set(dom_id, {
+                    itemId: this.numComponente,
+                    type: 'select',
+                    name: this.verificaVazio(elemento.getAttribute('name')),
+                    isComponent: true
+                });
                 this.xmlSite += `\t\t\t<component type="select" dom_id="${dom_id}" node_id="${this.numPagina}" item_id="${this.numComponente}" name="${this.verificaVazio(elemento.getAttribute('name'))}">\n`;
                 this.xmlSite += `\t\t\t\t<event name="focus" node_id="${this.numPagina}" item_id="${this.numComponente}" event_id="${this.numEvento}"></event>\n`;
                 this.numEvento++;
@@ -307,6 +350,12 @@ class WebCrawler {
                 break;
 
             case 'button':
+                this.componentMap.set(dom_id, {
+                    itemId: this.numComponente,
+                    type: 'button',
+                    name: this.verificaVazio(elemento.getAttribute('name')),
+                    isComponent: true
+                });
                 this.xmlSite += `\t\t\t<component type="button" dom_id="${dom_id}" node_id="${this.numPagina}" item_id="${this.numComponente}" name="${this.verificaVazio(elemento.getAttribute('name'))}">\n`;
                 this.xmlSite += `\t\t\t\t<event name="click" node_id="${this.numPagina}" item_id="${this.numComponente}" event_id="${this.numEvento}"></event>\n`;
                 this.numEvento++;
@@ -319,6 +368,45 @@ class WebCrawler {
                 this.xmlSite += '\t\t\t</component>\n';
                 this.numComponente++;
                 break;
+        }
+    }
+
+    geraEstruturaDOM(){
+        this.percorreNo(document.body, 1);
+    }
+
+    percorreNo(elemento, nivel){
+        if(!elemento || elemento.nodeType !== 1) return;
+
+        const tag = elemento.tagName.toLowerCase();
+        const ident = '\t'.repeat(nivel + 1); // identação
+
+        const tagsEstruturais = ['div', 'section', 'header', 'nav', 'ul', 'li', 'article', 'form', 'p', 'span'];
+        // Verifica se o elemento atual foi mapeado como um componente completo
+        const componentInfo = this.componentMap.get(this.DOM.indexOf(elemento));
+        // Se for um componente adiciona no xmlStructure
+        if(componentInfo && componentInfo.isComponent) {
+            this.xmlStructure += `${ident}<node name="component" id="${elemento.id}" class="${elemento.className}" type="${componentInfo.type}" dom_id="${this.DOM.indexOf(elemento)}" node_id="${this.numPagina}" item_id="${componentInfo.itemId}" externo="${componentInfo.externo || 'undefined'}" str_id="${this.numComponente++}"></node>\n`;
+            return;
+        }
+
+        // Se for uma tag estrutural, cria um nó estrutural
+        if(tagsEstruturais.includes(tag) || tag === 'body'){
+            if(tag === 'body'){
+                this.xmlStructure += `${ident}<page url="${this.escapeXML(window.location.href)}" titulo="${this.escapeXML(document.title)}" node_id="${this.numPagina}" index="${this.index === 'true' ? 'true' : 'false'}"> \n`;
+            } else {
+                this.xmlStructure += `${ident}<node name="${tag}" class="${elemento.className}" id="${elemento.id}" node_id="${this.numPagina}" type="" item_id="" str_id="${this.numComponente++}">\n`;
+            }
+
+            for(const filho of elemento.children){
+                this.percorreNo(filho, nivel + 1);
+            }
+
+            if(tag === 'body'){
+                this.xmlStructure += `${ident}</page>\n`;
+            } else {
+                this.xmlStructure += `${ident}</node>\n`;
+            }
         }
     }
 
@@ -508,7 +596,11 @@ class WebCrawler {
             }
         });
 
-        this.xmlSite += '\t</edges>\n';
+        this.xmlSite += '\t</edges>\n\n';
+        this.xmlSite += '\t<structure>\n';
+        this.xmlSite += this.xmlStructure;
+        this.xmlSite += '\t</structure>\n\n';
+        this.xmlSite += this.xmlStructure;
         this.xmlSite += '</site>\n';
 
         this.salvarXML();
