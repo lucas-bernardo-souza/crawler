@@ -1234,6 +1234,13 @@ class WebTracer {
                 console.error('XML inválido:', parseError.textContent);
                 throw new Error('XML final está mal formado');
             }
+
+            // adicionando interacoes
+            // remove o fechamento da tag site
+            finalXML = finalXML.replace('</site>', '');
+            finalXML = finalXML.replace('</pages>', '</pages>\n' + this.xmlInteracoes);
+            finalXML += '\n</interactions>';
+            finalXML += '\n</site>';
             
             console.log("XML validado com sucesso, criando download...");
             this.realizarDownload(finalXML);
