@@ -512,11 +512,15 @@ class WebTracer {
             }
         }
 
+        if(idTargetPage === 0){
+            return;
+        }
+
         // Gerar interações
-        this.xmlInteracoes += `\t\t<interaction id_int="${this.numInteracoes}" initialState="${idIniStateLink}" finalState="${idFinalStateLink}" event_source="" event_target="${idSrcEvent}" source_id="${sourceID}" type_source="component" target_id="${idTargetPage}" type_target="page">${this.tempoInteracao + tempo}</interaction>\n`;
+        this.xmlInteracoes += `\t\t<interaction id_int="${this.numInteracoes}" initialState="${idIniStateLink}" finalState="${idFinalStateLink}" event_source="" event_target="${idSrcEvent}" source="${sourceID}" type_source="component" target="${idTargetPage}" type_target="page">${this.tempoInteracao + tempo}</interaction>\n`;
         this.numInteracoes++;
         
-        this.xmlInteracoes += `\t\t<interaction id_int="${this.numInteracoes}" initialState="${idIniState}" finalState="${idFimState}" event_source="${idSrcEvent}" event_target="${idTargetEvent}" source_id="${idTargetPage}" type_source="page" target_id="${idTargetPage}" type_target="page">${this.tempoInteracao + tempo + 50}</interaction>\n`;
+        this.xmlInteracoes += `\t\t<interaction id_int="${this.numInteracoes}" initialState="${idIniState}" finalState="${idFimState}" event_source="${idSrcEvent}" event_target="${idTargetEvent}" source="${idTargetPage}" type_source="page" target="${idTargetPage}" type_target="page">${this.tempoInteracao + tempo + 50}</interaction>\n`;
         this.numInteracoes++;
     }
 
@@ -561,7 +565,11 @@ class WebTracer {
             }
         }
 
-        this.xmlInteracoes += `\t\t<interaction id_int="${this.numInteracoes}" initialState="${idIniState}" finalState="${idFimState}" event_source="${idTargetEvent}" event_target="${idTargetEvent}" source_id="${idTarget}" type_source="component" target_id="${idTarget}" type_target="component">${this.tempoInteracao + tempo}</interaction>\n`;
+        if(idTarget === 0){
+            return;
+        }
+
+        this.xmlInteracoes += `\t\t<interaction id_int="${this.numInteracoes}" initialState="${idIniState}" finalState="${idFimState}" event_source="${idTargetEvent}" event_target="${idTargetEvent}" source="${idTarget}" type_source="component" target="${idTarget}" type_target="component">${this.tempoInteracao + tempo}</interaction>\n`;
         this.numInteracoes++;
 
         await this.salvarEstado();
@@ -610,7 +618,12 @@ class WebTracer {
                 }
             }
         }
-        this.xmlInteracoes += `\t\t<interaction id_int="${this.numInteracoes}" initialState="${idIniState}" finalState="${idFimState}" event_source="${idTargetEvent}" event_target="${idTargetEvent}" source_id="${idTarget}" type_source="component" target_id="${idTarget}" type_target="component">${this.tempoInteracao + tempo}</interaction>\n`;
+
+        if(idTarget === 0){
+            return;
+        }
+
+        this.xmlInteracoes += `\t\t<interaction id_int="${this.numInteracoes}" initialState="${idIniState}" finalState="${idFimState}" event_source="${idTargetEvent}" event_target="${idTargetEvent}" source="${idTarget}" type_source="component" target="${idTarget}" type_target="component">${this.tempoInteracao + tempo}</interaction>\n`;
         this.numInteracoes++;
         await this.salvarEstado();
         console.log('monitorou input');
@@ -676,8 +689,12 @@ class WebTracer {
                 }
             }
         }
+
+        if(idTarget === 0){
+            return;
+        }
         
-        this.xmlInteracoes += `\t\t<interaction id_int="${this.numInteracoes}" initialState="${idIniState}" finalState="${idFimState}" event_source="${idTargetEvent}" event_target="${idTargetEvent}" source_id="${idTarget}" type_source="component" target_id="${idTarget}" type_target="component">${this.tempoInteracao + tempo}</interaction>\n`;
+        this.xmlInteracoes += `\t\t<interaction id_int="${this.numInteracoes}" initialState="${idIniState}" finalState="${idFimState}" event_source="${idTargetEvent}" event_target="${idTargetEvent}" source="${idTarget}" type_source="component" target="${idTarget}" type_target="component">${this.tempoInteracao + tempo}</interaction>\n`;
         this.numInteracoes++;
         await this.salvarEstado();
         console.log('monitorou checkbox');
@@ -736,8 +753,12 @@ class WebTracer {
                 }
             }
         }
+
+        if(idTarget === 0){
+            return;
+        }
         
-        this.xmlInteracoes += `\t\t<interaction id_int="${this.numInteracoes}" initialState="${idIniState}" finalState="${idFimState}" event_source="${idTargetEvent}" event_target="${idTargetEvent}" source_id="${idTarget}" type_source="component" target_id="${idTarget}" type_target="component">${this.tempoInteracao + tempo}</interaction>\n`;
+        this.xmlInteracoes += `\t\t<interaction id_int="${this.numInteracoes}" initialState="${idIniState}" finalState="${idFimState}" event_source="${idTargetEvent}" event_target="${idTargetEvent}" source="${idTarget}" type_source="component" target="${idTarget}" type_target="component">${this.tempoInteracao + tempo}</interaction>\n`;
         this.numInteracoes++;
         await this.salvarEstado();
         console.log('monitorou radio');
@@ -786,8 +807,12 @@ class WebTracer {
                 }
             }
         }
+
+        if(idTarget === 0){
+            return;
+        }
         
-        this.xmlInteracoes += `\t\t<interaction id_int="${this.numInteracoes}" initialState="${idIniState}" finalState="${idFimState}" event_source="${idTargetEvent}" event_target="${idTargetEvent}" source_id="${idTarget}" type_source="component" target_id="${idTarget}" type_target="component">${this.tempoInteracao + tempo}</interaction>\n`;
+        this.xmlInteracoes += `\t\t<interaction id_int="${this.numInteracoes}" initialState="${idIniState}" finalState="${idFimState}" event_source="${idTargetEvent}" event_target="${idTargetEvent}" source="${idTarget}" type_source="component" target="${idTarget}" type_target="component">${this.tempoInteracao + tempo}</interaction>\n`;
         this.numInteracoes++;
         this.salvarEstado();
         console.log('monitorou select');
