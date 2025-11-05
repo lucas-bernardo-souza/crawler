@@ -600,7 +600,6 @@ class WebCrawler {
         this.xmlSite += '\t<structure>\n';
         this.xmlSite += this.xmlStructure;
         this.xmlSite += '\t</structure>\n\n';
-        this.xmlSite += this.xmlStructure;
         this.xmlSite += '</site>\n';
 
         this.salvarXML();
