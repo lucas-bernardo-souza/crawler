@@ -1225,19 +1225,7 @@ class WebTracer {
         try{
             // Garantir que o XML está completo
             let finalXML = this.xmlFinalTracer || '';
-            /*
-            // Se finalXML estiver vazio, tenta reconstruir com base no xmlJquery
-            if(!finalXML || finalXML.trim() === ''){
-                console.warn('salvarXMLTracer: xmlFinalTracer vazio, tentando reconstruir...');
-                if(this.xmlJquery){
-                    try{
-                        this.reconstruirXMLFinal();
-                        finalXML = this.xmlFinalTracer || '';
-                    } catch(e){
-                        console.error('salvarXMLTracer: falha ao reconstruir xmlFinal', e);
-                    }
-                }
-            } */
+        
             finalXML = this.corrigirXML(finalXML);
             const invalidChars = finalXML.match(/[^\x09\x0A\x0D\x20-\x7E\xA0-\xFF\u0100-\uD7FF\uE000-\uFFFD]/g);
             if (invalidChars) {
@@ -1245,19 +1233,7 @@ class WebTracer {
                 // Remove qualquer caractere problemático residual
                 finalXML = finalXML.replace(/[^\x09\x0A\x0D\x20-\x7E\xA0-\xFF\u0100-\uD7FF\uE000-\uFFFD]/g, '');
             }
-            /*
-            // Garantir estrutura básica se ainda estiver incompleto
-            if (!finalXML.includes('</site>')) {
-                if (finalXML.includes('<interactions>') && !finalXML.includes('</interactions>')) {
-                    const interactionsContent = finalXML.split('<interactions>')[1];
-                    finalXML = finalXML.split('<interactions>')[0] + 
-                            '\t<interactions>\n' + interactionsContent + 
-                            '\t</interactions>\n</site>';
-                } else {
-                    finalXML += '\n</site>';
-                }
-            } */
-
+            
             // remove a tag de fechamento </site> para adiciona as interacoes
             if(finalXML.trim().endsWith('</site>')){
                 finalXML = finalXML.substring(0, finalXML.lastIndexOf('</site>')).trim();
@@ -1276,15 +1252,7 @@ class WebTracer {
                 console.error('XML inválido:', parseError.textContent);
                 throw new Error('XML final está mal formado');
             }
-            /*
-            // adicionando interacoes
-            // remove o fechamento da tag site
-            finalXML = finalXML.replace('</site>', '');
-            finalXML = finalXML.replace('</pages>', '</pages>\n' + this.xmlInteracoes);
-            finalXML += '\n</interactions>';
-            finalXML += '\n</site>'; */
             
-            console.log("XML validado com sucesso, criando download...");
             this.realizarDownload(finalXML);
         } catch (error){
             console.log('Erro crítico ao gerar XML:', error);
