@@ -95,11 +95,7 @@ class WebTracer {
     }
 
     async iniciaTracer() {
-        console.log("WebTracer: Iniciando o processo de gravação...");
         try{
-
-            console.log("WebTracer: Conteúdo do XML recebido (primeiros 500 caracteres):", this.xmlTracer.substring(0, 500));
-
             if (!this.xmlTracer || this.xmlTracer.trim() === '') {
                 alert("Erro Crítico: O Tracer recebeu um mapa do site (XML) vazio. A gravação não pode começar.");
                 throw new Error("O xmlTracer está vazio ou nulo.");
@@ -121,23 +117,32 @@ class WebTracer {
                     throw new Error('XML inválido ou mal formado');
                 }
 
+                const pagesNode = this.xmlJquery.querySelector('pages');
+                const edgesNode = this.xmlJquery.querySelector('edges');
+                const structureNode = this.xmlJquery.querySelector('structure');
+
+                if(!pagesNode){
+                    console.error('Não foi possível encontrar a seção <pages> no XML');
+                    throw new Error('XML inválido, <pages> não encontrado');
+                }
+
                 this.xmlFinalTracer = '<?xml version="1.0" encoding="UTF-8"?>\n';
                 this.xmlFinalTracer += `<site url="${this.escapeXml(urlMapa)}" titulo="${this.escapeXml(titulo)}" tipo="tracer">\n`;
-                this.xmlFinalTracer += '\t<pages>\n';
+                this.xmlFinalTracer += '\t' + pagesNode.outerHTML + '\n';
 
-                // Utilização do objeto XML
-                const pagesNode = this.xmlJquery.querySelector('pages');
-                if(pagesNode){
-                    // Obtendo o conteúdo das tags <page>
-                    const pageElements = pagesNode.querySelectorAll('page');
-                    pageElements.forEach(page => {
-                        this.xmlFinalTracer += '\t\t' + page.outerHTML + '\n';
-                    });
+                if(edgesNode){
+                    this.xmlFinalTracer += '\t' + edgesNode.outerHTML + '\n';
                 } else {
-                    console.error('Não foi possível encontrar a seção <pages> no XML');
-                    this.xmlFinalTracer += '\t\t<!-- Pages não encontradas -->\n';
+                    console.warn('Nó <edges> não encontrado no XML do crawler.');
+                    this.xmlFinalTracer += '\t<edges></edges>\n'; // Adiciona um vazio para manter a estrutura
                 }
-                this.xmlFinalTracer += '\t</pages>\n';
+
+                if(structureNode){
+                    this.xmlFinalTracer += '\t' + structureNode.outerHTML + '\n';
+                } else {
+                    console.warn('Nó <structure> não encontrado no XML do crawler.');
+                    this.xmlFinalTracer += '\t<structure></structure>\n'; // Adiciona um vazio
+                }
 
                 this.xmlInteracoes = '\t<interactions>\n';
             }
@@ -517,10 +522,10 @@ class WebTracer {
         }
 
         // Gerar interações
-        this.xmlInteracoes += `\t\t<interaction id_int="${this.numInteracoes}" initialState="${idIniStateLink}" finalState="${idFinalStateLink}" event_source="" event_target="${idSrcEvent}" source="${sourceID}" type_source="component" target="${idTargetPage}" type_target="page">${this.tempoInteracao + tempo}</interaction>\n`;
+        this.xmlInteracoes += `\t\t<interaction id_int="${this.numInteracoes}" initialState="${idIniStateLink}" finalState="${idFinalStateLink}" event_source="" event_target="${idSrcEvent}" source_id="${sourceID}" type_source="component" target_id="${idTargetPage}" type_target="page">${this.tempoInteracao + tempo}</interaction>\n`;
         this.numInteracoes++;
         
-        this.xmlInteracoes += `\t\t<interaction id_int="${this.numInteracoes}" initialState="${idIniState}" finalState="${idFimState}" event_source="${idSrcEvent}" event_target="${idTargetEvent}" source="${idTargetPage}" type_source="page" target="${idTargetPage}" type_target="page">${this.tempoInteracao + tempo + 50}</interaction>\n`;
+        this.xmlInteracoes += `\t\t<interaction id_int="${this.numInteracoes}" initialState="${idIniState}" finalState="${idFimState}" event_source="${idSrcEvent}" event_target="${idTargetEvent}" source_id="${idTargetPage}" type_source="page" target_id="${idTargetPage}" type_target="page">${this.tempoInteracao + tempo + 50}</interaction>\n`;
         this.numInteracoes++;
     }
 
@@ -569,7 +574,7 @@ class WebTracer {
             return;
         }
 
-        this.xmlInteracoes += `\t\t<interaction id_int="${this.numInteracoes}" initialState="${idIniState}" finalState="${idFimState}" event_source="${idTargetEvent}" event_target="${idTargetEvent}" source="${idTarget}" type_source="component" target="${idTarget}" type_target="component">${this.tempoInteracao + tempo}</interaction>\n`;
+        this.xmlInteracoes += `\t\t<interaction id_int="${this.numInteracoes}" initialState="${idIniState}" finalState="${idFimState}" event_source="${idTargetEvent}" event_target="${idTargetEvent}" source_id="${idTarget}" type_source="component" target_id="${idTarget}" type_target="component">${this.tempoInteracao + tempo}</interaction>\n`;
         this.numInteracoes++;
 
         await this.salvarEstado();
@@ -589,7 +594,7 @@ class WebTracer {
         const pages = this.xmlJquery.querySelectorAll('pages page');
 
         for(const page of pages){
-            if(page.getAttribute('url') === urlMapa){
+            if(this.normalizeUrl(page.getAttribute('url')) === urlMapa){
                 const components = page.querySelectorAll('component');
 
                 for(const component of components){
@@ -623,7 +628,7 @@ class WebTracer {
             return;
         }
 
-        this.xmlInteracoes += `\t\t<interaction id_int="${this.numInteracoes}" initialState="${idIniState}" finalState="${idFimState}" event_source="${idTargetEvent}" event_target="${idTargetEvent}" source="${idTarget}" type_source="component" target="${idTarget}" type_target="component">${this.tempoInteracao + tempo}</interaction>\n`;
+        this.xmlInteracoes += `\t\t<interaction id_int="${this.numInteracoes}" initialState="${idIniState}" finalState="${idFimState}" event_source="${idTargetEvent}" event_target="${idTargetEvent}" source_id="${idTarget}" type_source="component" target_id="${idTarget}" type_target="component">${this.tempoInteracao + tempo}</interaction>\n`;
         this.numInteracoes++;
         await this.salvarEstado();
         console.log('monitorou input');
@@ -694,7 +699,7 @@ class WebTracer {
             return;
         }
         
-        this.xmlInteracoes += `\t\t<interaction id_int="${this.numInteracoes}" initialState="${idIniState}" finalState="${idFimState}" event_source="${idTargetEvent}" event_target="${idTargetEvent}" source="${idTarget}" type_source="component" target="${idTarget}" type_target="component">${this.tempoInteracao + tempo}</interaction>\n`;
+        this.xmlInteracoes += `\t\t<interaction id_int="${this.numInteracoes}" initialState="${idIniState}" finalState="${idFimState}" event_source="${idTargetEvent}" event_target="${idTargetEvent}" source_id="${idTarget}" type_source="component" target_id="${idTarget}" type_target="component">${this.tempoInteracao + tempo}</interaction>\n`;
         this.numInteracoes++;
         await this.salvarEstado();
         console.log('monitorou checkbox');
@@ -758,7 +763,7 @@ class WebTracer {
             return;
         }
         
-        this.xmlInteracoes += `\t\t<interaction id_int="${this.numInteracoes}" initialState="${idIniState}" finalState="${idFimState}" event_source="${idTargetEvent}" event_target="${idTargetEvent}" source="${idTarget}" type_source="component" target="${idTarget}" type_target="component">${this.tempoInteracao + tempo}</interaction>\n`;
+        this.xmlInteracoes += `\t\t<interaction id_int="${this.numInteracoes}" initialState="${idIniState}" finalState="${idFimState}" event_source="${idTargetEvent}" event_target="${idTargetEvent}" source_id="${idTarget}" type_source="component" target_id="${idTarget}" type_target="component">${this.tempoInteracao + tempo}</interaction>\n`;
         this.numInteracoes++;
         await this.salvarEstado();
         console.log('monitorou radio');
@@ -778,7 +783,7 @@ class WebTracer {
         const pages = this.xmlJquery.querySelectorAll('pages page');
         
         for (const page of pages) {
-            if (page.getAttribute('url') === urlMapa) {
+            if (this.normalizeUrl(page.getAttribute('url')) === urlMapa) {
                 const components = page.querySelectorAll('component');
                 
                 for (const component of components) {
@@ -812,7 +817,7 @@ class WebTracer {
             return;
         }
         
-        this.xmlInteracoes += `\t\t<interaction id_int="${this.numInteracoes}" initialState="${idIniState}" finalState="${idFimState}" event_source="${idTargetEvent}" event_target="${idTargetEvent}" source="${idTarget}" type_source="component" target="${idTarget}" type_target="component">${this.tempoInteracao + tempo}</interaction>\n`;
+        this.xmlInteracoes += `\t\t<interaction id_int="${this.numInteracoes}" initialState="${idIniState}" finalState="${idFimState}" event_source="${idTargetEvent}" event_target="${idTargetEvent}" source_id="${idTarget}" type_source="component" target_id="${idTarget}" type_target="component">${this.tempoInteracao + tempo}</interaction>\n`;
         this.numInteracoes++;
         this.salvarEstado();
         console.log('monitorou select');
@@ -1220,6 +1225,7 @@ class WebTracer {
         try{
             // Garantir que o XML está completo
             let finalXML = this.xmlFinalTracer || '';
+            /*
             // Se finalXML estiver vazio, tenta reconstruir com base no xmlJquery
             if(!finalXML || finalXML.trim() === ''){
                 console.warn('salvarXMLTracer: xmlFinalTracer vazio, tentando reconstruir...');
@@ -1231,7 +1237,7 @@ class WebTracer {
                         console.error('salvarXMLTracer: falha ao reconstruir xmlFinal', e);
                     }
                 }
-            }
+            } */
             finalXML = this.corrigirXML(finalXML);
             const invalidChars = finalXML.match(/[^\x09\x0A\x0D\x20-\x7E\xA0-\xFF\u0100-\uD7FF\uE000-\uFFFD]/g);
             if (invalidChars) {
@@ -1239,6 +1245,7 @@ class WebTracer {
                 // Remove qualquer caractere problemático residual
                 finalXML = finalXML.replace(/[^\x09\x0A\x0D\x20-\x7E\xA0-\xFF\u0100-\uD7FF\uE000-\uFFFD]/g, '');
             }
+            /*
             // Garantir estrutura básica se ainda estiver incompleto
             if (!finalXML.includes('</site>')) {
                 if (finalXML.includes('<interactions>') && !finalXML.includes('</interactions>')) {
@@ -1249,7 +1256,17 @@ class WebTracer {
                 } else {
                     finalXML += '\n</site>';
                 }
+            } */
+
+            // remove a tag de fechamento </site> para adiciona as interacoes
+            if(finalXML.trim().endsWith('</site>')){
+                finalXML = finalXML.substring(0, finalXML.lastIndexOf('</site>')).trim();
             }
+            // Adicionando interacoes
+            finalXML += '\n' + this.xmlInteracoes;
+            finalXML += '\n\t</interactions>';
+
+            finalXML += '\n</site>';
 
             // Validar o XML final
             const parser = new DOMParser();
@@ -1259,13 +1276,13 @@ class WebTracer {
                 console.error('XML inválido:', parseError.textContent);
                 throw new Error('XML final está mal formado');
             }
-
+            /*
             // adicionando interacoes
             // remove o fechamento da tag site
             finalXML = finalXML.replace('</site>', '');
             finalXML = finalXML.replace('</pages>', '</pages>\n' + this.xmlInteracoes);
             finalXML += '\n</interactions>';
-            finalXML += '\n</site>';
+            finalXML += '\n</site>'; */
             
             console.log("XML validado com sucesso, criando download...");
             this.realizarDownload(finalXML);
